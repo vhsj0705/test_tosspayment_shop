@@ -11,55 +11,114 @@ const PENDING_KEY = "fitlog-pending-order";
 
 document.addEventListener("DOMContentLoaded", async () => {
   const isDirect = new URLSearchParams(location.search).get("mode") === "direct";
-  const items = isDirect ? readJSON(sessionStorage, DIRECT_KEY, []) : Cart.get();
-  const order = calcOrder(items);
+  const couponEl = $("#coupon");
+  const payBtn = $("#payBtn");
 
-  if (!order.lines.length) {
+  const showEmpty = (msg) => {
     $(".checkout__grid").innerHTML = `
       <div class="cart-empty" style="grid-column:1/-1">
-        주문할 상품이 없어요.<br /><br />
+        ${msg}<br /><br />
         <a href="top.html" class="btn btn--black" style="width:200px">쇼핑하러 가기</a>
       </div>`;
+  };
+
+  try {
+    await productsReady;
+  } catch (err) {
+    console.error(err);
+    return showEmpty("상품 정보를 불러오지 못했어요.<br />잠시 후 다시 시도해 주세요.");
+  }
+
+  const items = isDirect ? readJSON(sessionStorage, DIRECT_KEY, []) : Cart.get();
+  const lines = calcOrder(items).lines;
+  if (!lines.length) return showEmpty("주문할 상품이 없어요.");
+  // 서버에는 상품·사이즈·수량과 쿠폰 사용 여부만 보내요. 금액은 서버가 계산해요.
+  const orderItems = lines.map(({ id, size, qty }) => ({ id, size, qty }));
+
+  /* ---------- 서버 금액 계산 ---------- */
+  let quote = null;
+  const canPay = () => !!quote && !quote.problems.length && quote.amounts.total > 0;
+
+  async function refreshQuote() {
+    payBtn.disabled = true;
+    $("#sumTotal").textContent = "계산 중…";
+    quote = await callFunction("create-order", { dryRun: true, useCoupon: couponEl.checked, items: orderItems });
+    paint();
+    return quote;
+  }
+
+  function paint() {
+    const problems = quote ? quote.problems : [];
+    const serverLine = (l) => quote && quote.lines.find((x) => x.productId === l.id && x.size === l.size);
+
+    $("#itemCount").textContent = `${lines.length}개`;
+    $("#orderItems").innerHTML = lines
+      .map((l) => {
+        const bad = problems.find((x) => x.id === l.id && x.size === l.size);
+        const sl = serverLine(l);
+        return `
+        <div class="order-item">
+          <div class="order-item__thumb">${renderThumb(l.product)}</div>
+          <div>
+            <p class="cart-item__brand">${l.product.brand}</p>
+            <p class="cart-item__name">${l.product.name}</p>
+            <p class="cart-item__opt">사이즈 ${l.size} / 수량 ${l.qty}개</p>
+            ${bad ? `<p class="order-item__warn">${bad.message}</p>` : ""}
+          </div>
+          <p class="order-item__price">${bad ? "-" : won(sl ? sl.lineTotal : l.lineTotal)}</p>
+        </div>`;
+      })
+      .join("");
+
+    const notice = $("#orderNotice");
+    notice.hidden = !problems.length;
+    notice.innerHTML = problems.length
+      ? `재고가 부족한 상품이 있어 결제할 수 없어요.
+         <button type="button" class="btn btn--line" id="fixItems">품절 상품 정리하고 다시 계산하기</button>`
+      : "";
+    if (problems.length) $("#fixItems").addEventListener("click", () => fixItems(problems));
+
+    if (!quote) return;
+    const a = quote.amounts;
+    $("#sumOrigin").textContent = won(a.origin);
+    $("#sumDiscount").textContent = "-" + won(a.productDiscount);
+    $("#sumCoupon").textContent = a.coupon ? "-" + won(a.coupon) : "0원";
+    $("#sumShip").textContent = a.shipping ? won(a.shipping) : "무료";
+    $("#sumTotal").textContent = won(a.total);
+    payBtn.textContent = `${won(a.total)} 결제하기`;
+  }
+
+  // 품절은 빼고, 재고가 조금 남은 상품은 남은 수량으로 줄여요.
+  function fixItems(problems) {
+    const fix = (list) =>
+      list
+        .map((it) => {
+          const p = problems.find((x) => x.id === it.id && x.size === it.size);
+          if (!p) return it;
+          return p.reason === "SOLD_OUT" && p.stock > 0 ? { ...it, qty: Math.min(p.stock, 10) } : null;
+        })
+        .filter(Boolean);
+    if (isDirect) writeJSON(sessionStorage, DIRECT_KEY, fix(items));
+    else Cart.set(fix(Cart.get()));
+    location.reload();
+  }
+
+  paint();
+  try {
+    await refreshQuote();
+  } catch (err) {
+    console.error(err);
+    $("#sumTotal").textContent = "-";
+    $("#payment-method").innerHTML = `<p class="widget-loading">결제 금액을 계산하지 못했어요. 새로고침해 주세요. (${err.message})</p>`;
     return;
   }
 
-  /* ---------- 주문 상품 ---------- */
-  $("#itemCount").textContent = `${order.lines.length}개`;
-  $("#orderItems").innerHTML = order.lines
-    .map(
-      (l) => `
-      <div class="order-item">
-        <div class="order-item__thumb">${renderThumb(l.product)}</div>
-        <div>
-          <p class="cart-item__brand">${l.product.brand}</p>
-          <p class="cart-item__name">${l.product.name}</p>
-          <p class="cart-item__opt">사이즈 ${l.size} / 수량 ${l.qty}개</p>
-        </div>
-        <p class="order-item__price">${won(l.lineTotal)}</p>
-      </div>`
-    )
-    .join("");
-
-  /* ---------- 금액 계산 ---------- */
-  const couponEl = $("#coupon");
-  function getAmount() {
-    const coupon = couponEl.checked ? Math.min(Math.floor((order.subtotal * 0.2) / 10) * 10, 10000) : 0;
-    const total = order.subtotal - coupon + order.shipping;
-    return { coupon, total };
-  }
-  function paintSummary() {
-    const { coupon, total } = getAmount();
-    $("#sumOrigin").textContent = won(order.origin);
-    $("#sumDiscount").textContent = "-" + won(order.productDiscount);
-    $("#sumCoupon").textContent = coupon ? "-" + won(coupon) : "0원";
-    $("#sumShip").textContent = order.shipping ? won(order.shipping) : "무료";
-    $("#sumTotal").textContent = won(total);
-    $("#payBtn").textContent = `${won(total)} 결제하기`;
-  }
-  paintSummary();
-
   if (location.protocol === "file:") {
     $("#payment-method").innerHTML = `<p class="widget-loading">결제위젯은 <b>http://localhost</b> 같은 웹 서버에서 열어야 동작해요.<br />README의 실행 방법을 참고하세요.</p>`;
+    return;
+  }
+  if (quote.amounts.total < 1) {
+    $("#payment-method").innerHTML = `<p class="widget-loading">결제할 수 있는 상품이 없어요.</p>`;
     return;
   }
 
@@ -70,63 +129,80 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   /* ---------- 2. 금액 설정 & 결제 UI 렌더링 ---------- */
   try {
-    await widgets.setAmount({ currency: "KRW", value: getAmount().total });
+    await widgets.setAmount({ currency: "KRW", value: quote.amounts.total });
     $("#payment-method").innerHTML = "";
     await Promise.all([
       widgets.renderPaymentMethods({ selector: "#payment-method", variantKey: "DEFAULT" }),
       widgets.renderAgreement({ selector: "#agreement", variantKey: "AGREEMENT" }),
     ]);
-    $("#payBtn").disabled = false;
+    payBtn.disabled = !canPay();
   } catch (err) {
     console.error(err);
     $("#payment-method").innerHTML = `<p class="widget-loading">결제 수단을 불러오지 못했어요. (${err.code || ""} ${err.message || err})</p>`;
     return;
   }
 
-  // 쿠폰 적용 등으로 금액이 바뀌면 setAmount()로 다시 알려줘요.
+  // 쿠폰을 바꾸면 서버에 금액을 다시 물어보고, setAmount()로 위젯에도 알려줘요.
+  async function syncAmount() {
+    await refreshQuote();
+    if (quote.amounts.total > 0) await widgets.setAmount({ currency: "KRW", value: quote.amounts.total });
+  }
   couponEl.addEventListener("change", async () => {
-    paintSummary();
-    await widgets.setAmount({ currency: "KRW", value: getAmount().total });
+    couponEl.disabled = true;
+    try {
+      await syncAmount();
+    } catch (err) {
+      toast(err.message || "금액을 다시 계산하지 못했어요");
+    } finally {
+      couponEl.disabled = false;
+      payBtn.disabled = !canPay();
+    }
   });
 
   /* ---------- 3. 결제 요청 ---------- */
-  $("#payBtn").addEventListener("click", async () => {
+  payBtn.addEventListener("click", async () => {
     const form = validateForm();
-    if (!form) return;
+    if (!form || !canPay()) return;
 
-    const { total, coupon } = getAmount();
-    const first = order.lines[0].product.name;
-    const orderName = order.lines.length > 1 ? `${first} 외 ${order.lines.length - 1}건` : first;
     const orderId = "FITLOG-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
+    payBtn.disabled = true;
 
-    // 결제 요청 전에 orderId·amount를 화면용으로 저장해 두고(아래),
-    // 서버(Supabase orders 테이블)에도 'pending' 주문으로 저장해요. 승인 때 서버가 이 금액과 비교해요.
+    // 서버가 금액을 다시 계산하고 재고를 확인한 뒤 'pending' 주문으로 저장해요.
+    // 화면 금액(expectedAmount)과 다르면 저장하지 않고 바뀐 금액을 알려줘요.
+    let created;
+    try {
+      created = await callFunction("create-order", {
+        orderId,
+        useCoupon: couponEl.checked,
+        expectedAmount: quote.amounts.total,
+        items: orderItems,
+        orderer: { name: form.name, phone: form.phone, email: form.email, address: form.address, memo: form.memo },
+      });
+    } catch (err) {
+      console.error(err);
+      if (["AMOUNT_CHANGED", "SOLD_OUT", "PRODUCT_UNAVAILABLE"].includes(err.code)) {
+        await syncAmount().catch(() => {});
+      }
+      toast(err.message || "주문을 저장하지 못했어요");
+      payBtn.disabled = !canPay();
+      return;
+    }
+
+    // 결제 결과 화면에서 장바구니/바로 구매 데이터를 정리할 때 써요.
     writeJSON(localStorage, PENDING_KEY, {
       orderId,
-      amount: total,
-      orderName,
-      coupon,
+      amount: created.amount,
+      orderName: created.orderName,
       mode: isDirect ? "direct" : "cart",
-      items,
+      items: orderItems,
       orderer: form,
       createdAt: Date.now(),
     });
 
-    const btn = $("#payBtn");
-    btn.disabled = true;
     try {
-      await callFunction("create-order", {
-        orderId,
-        orderName,
-        amount: total,
-        coupon,
-        items: items.map(({ id, size, qty }) => ({ id, size, qty })),
-        orderer: { name: form.name, phone: form.phone, email: form.email, address: form.address, memo: form.memo },
-      });
-
       await widgets.requestPayment({
         orderId,
-        orderName,
+        orderName: created.orderName,
         successUrl: new URL("success.html", location.href).href,
         failUrl: new URL("fail.html", location.href).href,
         customerName: form.name,
@@ -137,7 +213,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       // 결제창을 닫는 등 리다이렉트 없이 끝나는 경우
       console.error(err);
       toast(err.message || "결제를 진행하지 못했어요");
-      btn.disabled = false;
+      payBtn.disabled = false;
     }
   });
 });

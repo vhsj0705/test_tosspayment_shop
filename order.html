@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>주문 조회 | FITLOG</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body data-page="order">
+  <div id="header"></div>
+
+  <main class="result order-lookup">
+    <h1>비회원 주문 조회</h1>
+    <p class="result__desc">주문번호와 주문할 때 입력한 휴대폰 번호를 넣어 주세요.</p>
+
+    <form id="lookupForm" class="order-lookup__form" novalidate>
+      <div class="form-row">
+        <label for="orderId">주문번호</label>
+        <input class="input" id="orderId" name="orderId" autocomplete="off" placeholder="FITLOG-로 시작하는 번호" />
+      </div>
+      <div class="form-row">
+        <label for="phone">휴대폰 번호</label>
+        <input class="input" id="phone" name="phone" inputmode="numeric" autocomplete="tel" placeholder="숫자만 입력 (예: 01012345678)" />
+      </div>
+      <button type="submit" class="btn btn--black btn--block" id="lookupBtn">조회하기</button>
+    </form>
+
+    <div id="orderResult"></div>
+  </main>
+
+  <div id="footer"></div>
+
+  <script src="js/supabase.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/common.js"></script>
+  <script>
+    /*
+     * 비회원 주문 조회·취소
+     * Edge Function guest-order가 주문번호 + 휴대폰 번호가 둘 다 맞을 때만 주문을 보여주고 취소해요.
+     * 취소하면 서버가 토스 결제 취소 API를 호출하고, 주문을 'canceled'로 바꾸고, 재고를 되돌려요.
+     */
+    const STATUS_LABEL = { pending: "결제 대기", paid: "결제 완료", failed: "결제 실패", canceled: "취소됨" };
+    const row = (k, v) => `<div><dt>${k}</dt><dd>${v}</dd></div>`;
+    const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    const when = (t) => (t ? new Date(t).toLocaleString("ko-KR") : "-");
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const form = document.getElementById("lookupForm");
+      const out = document.getElementById("orderResult");
+      const orderIdEl = document.getElementById("orderId");
+      const phoneEl = document.getElementById("phone");
+      orderIdEl.value = new URLSearchParams(location.search).get("orderId") || "";
+      (orderIdEl.value ? phoneEl : orderIdEl).focus();
+
+      let current = null; // { orderId, phone }
+
+      function render(o) {
+        const a = o.amounts || {};
+        const items = (o.items || [])
+          .map((i) => row(`${esc(i.brand)} ${esc(i.name)}<br /><small>${esc(i.size)} / ${i.qty}개 · 개당 ${won(i.unitPrice)}</small>`, won(i.lineTotal)))
+          .join("");
+        out.innerHTML = `
+          <dl class="result__table">
+            ${row("주문번호", esc(o.orderId))}
+            ${row("상태", `<span class="status status--${esc(o.status)}">${STATUS_LABEL[o.status] || esc(o.status)}</span>`)}
+            ${row("주문 일시", when(o.createdAt))}
+            ${items}
+            ${row("상품 금액", won(a.subtotal || 0))}
+            ${a.coupon ? row("쿠폰 할인", "-" + won(a.coupon)) : ""}
+            ${row("배송비", a.shipping ? won(a.shipping) : "무료")}
+            ${row("결제 금액", won(o.amount))}
+            ${o.method ? row("결제 수단", esc(o.method)) : ""}
+            ${o.approvedAt ? row("결제 일시", when(o.approvedAt)) : ""}
+            ${o.status === "canceled" ? row("취소 일시", when(o.canceledAt)) + row("취소 사유", esc(o.cancelReason || "-")) : ""}
+            ${o.status === "failed" && o.failureMessage ? row("실패 사유", esc(o.failureMessage)) : ""}
+            ${row("받는 분", esc(o.ordererName))}
+            ${row("배송지", esc(o.address))}
+          </dl>
+          ${o.warning ? `<p class="test-notice" style="text-align:left;margin:-12px 0 24px">${esc(o.warning)}</p>` : ""}
+          ${o.status === "paid" ? `<button type="button" class="btn btn--line btn--block" id="cancelBtn">주문 취소하기</button>` : ""}`;
+
+        const cancelBtn = document.getElementById("cancelBtn");
+        if (cancelBtn) cancelBtn.addEventListener("click", () => cancel(cancelBtn));
+      }
+
+      async function cancel(btn) {
+        if (!confirm("주문을 취소할까요? 결제가 취소되고 되돌릴 수 없어요.")) return;
+        btn.disabled = true;
+        btn.textContent = "취소하는 중…";
+        try {
+          const o = await callFunction("guest-order", { action: "cancel", ...current, reason: "고객 요청" });
+          render(o);
+          toast("주문을 취소했어요");
+        } catch (err) {
+          toast(err.message || "취소하지 못했어요");
+          btn.disabled = false;
+          btn.textContent = "주문 취소하기";
+        }
+      }
+
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const orderId = orderIdEl.value.trim();
+        const phone = phoneEl.value.replace(/\D/g, "");
+        orderIdEl.classList.toggle("is-error", !orderId);
+        phoneEl.classList.toggle("is-error", !/^01\d{8,9}$/.test(phone));
+        if (!orderId) return toast("주문번호를 입력해 주세요");
+        if (!/^01\d{8,9}$/.test(phone)) return toast("휴대폰 번호를 정확히 입력해 주세요");
+
+        const btn = document.getElementById("lookupBtn");
+        btn.disabled = true;
+        out.innerHTML = `<p class="widget-loading">주문을 찾는 중이에요…</p>`;
+        try {
+          current = { orderId, phone };
+          render(await callFunction("guest-order", { action: "get", orderId, phone }));
+        } catch (err) {
+          out.innerHTML = `<p class="widget-loading">${esc(err.message)}</p>`;
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    });
+  </script>
+</body>
+</html>

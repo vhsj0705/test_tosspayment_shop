@@ -16,37 +16,62 @@ powershell -ExecutionPolicy Bypass -File serve.ps1
 
 http://localhost:5500 에서 확인해요. `serve.ps1`은 Node/Python 없이 도는 `HttpListener` 정적 서버예요. Node.js가 있으면 `npx serve -l 5500 .`도 돼요.
 
-- 이 PC에는 Node.js가 없고, Git은 `C:\Program Files\Git`에 설치돼 있어요. 셸의 PATH에 git이 없으면 머신/사용자 PATH를 다시 읽거나 전체 경로로 실행하세요.
+- 이 PC에는 Git(`C:\Program Files\Git`)과 Node.js LTS(v24)가 winget으로 설치돼 있어요. 설치 전에 열린 셸은 PATH에 없을 수 있어요. 그땐 머신/사용자 PATH를 다시 읽거나 전체 경로로 실행하세요.
 - 배포는 Vercel이에요. `vercel.json`이 프레임워크·빌드 없이 루트 폴더를 그대로 정적 배포하도록 고정해요. `main`에 푸시하면 재배포돼요.
+- 운영 주소는 https://testtosspaymentshop-xv13.vercel.app 이에요(Vercel 프로젝트 `test_tosspayment_shop-xv13`, GitHub 저장소 연동). `vercel login`은 PC 이름에 한글이 있어서 `ByteString` 오류로 실패하니, CLI 대신 대시보드의 Git 연동을 쓰세요.
+
+## DB 연동 계획
+
+`prd.md`에 Supabase DB 연동 PRD(5단계)가 있어요. 단계 순서대로 진행해요.
+- **1단계(결제 안전) 완료**: 상품·재고 DB화, 서버 금액 계산, 주문 상세, 재고 차감·복구, 비회원 주문 조회·취소(환불).
+- 다음은 2단계(회원: 로그인·배송지·주문서 자동 입력)예요.
+
+사용자는 비개발자예요. 설명은 기능 중심으로 하고 코드 용어는 줄이세요.
 
 ## 구조
 
 전역 스크립트 방식이에요(ES 모듈 아님). 모든 페이지가 같은 순서로 스크립트를 불러오고, 뒤 파일이 앞 파일의 전역을 그대로 써요.
 
-`js/data.js` → `js/common.js` → (주문서·결제 성공 페이지만) `js/supabase.js` → (주문서만) `js/checkout.js`
+`js/supabase.js` → `js/data.js` → `js/common.js` → (주문서만) `js/checkout.js`
 
-- **`js/data.js`**: `CATEGORIES`(카테고리 키·라벨·링크·세부 탭), `PRODUCTS` 배열, `getProduct()`, SVG 썸네일 생성기 `ART`/`renderThumb()`. `finalPrice`와 `sizes`는 로드할 때 `price`·`sale`·`cat`으로 계산해 붙여요. 상품 이미지는 실제 사진이 아니라 `art` 종류별 SVG 일러스트예요.
-- **`js/common.js`**: 모든 페이지의 부트스트랩. `DOMContentLoaded`에서 `<body data-page="...">` 값을 읽어 헤더/푸터를 `#header`·`#footer` 자리에 주입하고, 장바구니 드로어·상품 모달·토스트를 body 끝에 붙여요. `data-page`가 `CATEGORIES`의 키(`top`/`shoes`/`pants`)이면 `initListPage()`로 목록 페이지를 그려요. 장바구니(`Cart`), 금액 계산(`calcOrder`, 5만원 이상 무료배송)도 여기 있어요.
-- **목록 페이지**(`top.html`, `shoes.html`, `pants.html`): 마크업이 같고 `data-page`, 제목, 프로모션 문구만 달라요. 카테고리를 추가하려면 `CATEGORIES`와 `PRODUCTS`에 넣고 같은 마크업의 HTML을 하나 더 만들면 돼요.
+- **`js/supabase.js`**: Supabase 주소·공개 anon 키, `restGet()`(공개 표 읽기), `callFunction()`(Edge Function 호출, 실패 시 `err.code`·`err.data`).
+- **`js/data.js`**: `CATEGORIES`, 상품을 DB에서 불러오는 `productsReady`(Promise)와 `PRODUCTS` 배열, `getProduct()`, `refreshStock(id)`, SVG 썸네일 `ART`/`renderThumb()`. DB 행은 `toProduct()`가 화면용 모양(`cat`, `sale`, `finalPrice`, `sizes`, `stock`, `soldout`, `image`)으로 바꿔요. **`PRODUCTS`는 처음엔 비어 있으니 쓰기 전에 `await productsReady`** 하세요. DB를 못 읽으면 `localStorage`(`fitlog-products-cache`)의 마지막 목록을 써요. `renderThumb()`는 사진 뒤에 SVG 일러스트를 깔아 둬서 사진이 안 불러와지면 SVG가 보여요. 사진을 바꿀 땐(`products.photo_id`/`photo_by`) 다른 회사 로고가 보이는 사진은 피하고 README "이미지 출처"도 같이 고치세요.
+- **`js/common.js`**: 모든 페이지의 부트스트랩. `DOMContentLoaded`에서 `<body data-page="...">` 값을 읽어 헤더/푸터를 주입하고, 장바구니 드로어·상품 모달·토스트를 body 끝에 붙여요. `data-page`가 `CATEGORIES`의 키(`top`/`shoes`/`pants`)이면 `initListPage()`로 목록을 그려요(로딩·오류 표시 포함). 상품 모달은 열 때 `refreshStock()`으로 재고를 다시 읽어요. 장바구니(`Cart`)와 화면용 금액 추정(`calcOrder`)도 여기 있어요.
+- **목록 페이지**(`top.html`, `shoes.html`, `pants.html`): 마크업이 같고 `data-page`, 제목, 프로모션 문구만 달라요. 카테고리를 추가하려면 `CATEGORIES`, DB `products.category` CHECK 제약, 서버 함수를 같이 고치고 같은 마크업의 HTML을 하나 더 만들어요.
 - **`index.html`은 `top.html`을 복사한 파일이에요.** Vercel에서 `/`가 빈 화면이 되지 않게 리다이렉트 대신 실제 페이지로 둔 거예요. `top.html`을 고치면 `index.html`도 같이 고치세요.
+- **`order.html`**: 비회원 주문 조회·취소(주문번호 + 휴대폰 번호). 헤더의 "주문조회"와 결제 완료 화면에서 들어와요.
+- `$(sel)`은 요소 하나, `$$(sel)`은 배열이에요. 스크립트로 파일을 고칠 때 JS `String.replace`의 바꿀 문자열에 `$$`를 넣으면 `$` 하나로 바뀌니 조심하세요.
 
 ## 결제 흐름
 
-1. 상품 모달에서 "장바구니"는 `localStorage`(`fitlog-cart`)에, "바로 구매"는 `sessionStorage`(`fitlog-direct-order`)에 담고 `checkout.html?mode=direct`로 이동해요.
-2. `checkout.js`: `TossPayments(clientKey).widgets({ customerKey: ANONYMOUS })` → `setAmount()` → `renderPaymentMethods()`·`renderAgreement()`. 쿠폰을 바꾸면 `setAmount()`를 다시 불러요. 결제하기를 누르면 화면용으로 `localStorage`의 `fitlog-pending-order`에 저장하고, Edge Function `create-order`로 서버에 `pending` 주문을 저장한 **뒤에** `requestPayment()`를 호출해요. `successUrl`/`failUrl`은 `new URL("success.html", location.href)`처럼 현재 위치 기준으로 만들어요.
-3. `success.html`: 쿼리의 `paymentKey`·`orderId`·`amount`를 Edge Function `confirm-payment`로 보내고, 응답으로 결과 화면을 그려요. 성공하면 주문 `mode`에 따라 장바구니나 바로 구매 데이터를 비워요.
-4. **결제 승인은 서버에서만 해요.** `confirm-payment`가 저장된 주문 금액과 비교한 뒤 시크릿 키로 `POST https://api.tosspayments.com/v1/payments/confirm`을 호출하고, 주문을 `paid`(실패면 `failed`)로 바꿔요. 이미 `paid`인 주문은 같은 결과를 돌려줘요(새로고침 대비).
+1. 상품 모달에서 "장바구니"는 `localStorage`(`fitlog-cart`)에, "바로 구매"는 `sessionStorage`(`fitlog-direct-order`)에 담고 `checkout.html?mode=direct`로 이동해요. 항목 모양은 `{ id, size, qty }`(수량 최대 10).
+2. `checkout.js`: `create-order`를 `dryRun: true`로 불러 **서버가 계산한 금액**을 보여줘요(쿠폰을 바꿀 때도 다시 불러요). 재고가 부족한 상품이 있으면 표시하고 결제를 막아요("품절 상품 정리" 버튼). 결제위젯은 `setAmount(서버 금액)` → `renderPaymentMethods()`·`renderAgreement()`.
+3. 결제하기: `create-order`에 `{ orderId, items, useCoupon, expectedAmount, orderer }`를 보내요. 서버가 다시 계산해서 `expectedAmount`와 다르면 `AMOUNT_CHANGED`, 재고가 모자라면 `SOLD_OUT`(409)로 거부하고, 같으면 `orders`(pending)와 `order_items`를 저장해요. 그 뒤 `localStorage`의 `fitlog-pending-order`에 저장하고 `requestPayment()`를 호출해요.
+4. `success.html` → `confirm-payment`: 금액 비교 → `reserve_order_stock()`로 재고 차감(모자라면 승인 안 함) → 시크릿 키로 토스 승인 API 호출 → `paid`. 토스가 거절하면 재고를 되돌리고 `failed`. 이미 `paid`면 같은 결과를 돌려줘요(새로고침 대비). 응답에 주문 상세(`items`)가 있어요.
+5. 취소: `order.html` → `guest-order`(`action: "cancel"`) → 토스 취소 API(`POST /v1/payments/{paymentKey}/cancel`) → `canceled` + `release_order_stock()`.
+
+- 금액 규칙(서버 `create-order`의 `quote()`가 기준): 판매가=정가×(1−할인율) 100원 단위 반올림(DB `products.final_price` 계산 컬럼), 상품 합계 5만원 미만 배송비 3,000원, 쿠폰=상품 합계 20%(10원 단위 내림, 최대 1만원), 주문 금액 1원~1,000만원. 화면의 `calcOrder()`는 장바구니 드로어용 추정치예요.
+- `create-order`는 예전 주문서가 보내던 `amount`·`coupon`도 `expectedAmount`·`useCoupon`으로 받아줘요(배포 전환기 호환).
 
 `TOSS_CLIENT_KEY`(`js/checkout.js`)는 토스 문서에 공개된 테스트 키예요. 테스트 키에서는 가상계좌가 보이지 않아요.
 
 ## Supabase
 
-프로젝트 `fitlog`(ID `etdvzqlvqfrnkxmzythf`, 서울 리전). 코드는 `js/supabase.js`의 `callFunction()`으로 Edge Function만 호출해요.
+프로젝트 `fitlog`(ID `etdvzqlvqfrnkxmzythf`, 서울 리전). DB 구조는 `supabase/migrations/`, 함수 소스는 `supabase/functions/`에 있어요(배포본과 같게 유지).
 
-- `public.orders`: RLS가 켜져 있고 정책이 없어서 anon 키로는 읽고 쓸 수 없어요. Edge Function의 service role만 접근해요. (보안 어드바이저의 "RLS Enabled No Policy"는 의도한 상태예요.)
-- Edge Function `create-order`, `confirm-payment`는 `verify_jwt: true`예요. 브라우저는 공개 anon 키로 호출해요. 함수 소스는 저장소에 없고 Supabase에 배포돼 있어요. 수정하려면 Supabase 도구로 다시 배포하세요.
-- 토스 시크릿 키는 함수 환경변수 `TOSS_SECRET_KEY`에서 읽고, 설정이 없으면 토스 문서용 테스트 시크릿 키를 써요. 운영 전에 Supabase 대시보드(Edge Functions → Secrets)에서 내 상점 시크릿 키로 설정해야 해요.
-- 주문 금액은 클라이언트가 계산해서 `create-order`에 보내고, 서버는 상품 가격표가 없어서 다시 계산하지 못해요. 금액 위변조까지 막으려면 상품을 Supabase 테이블로 옮기고 서버에서 합계를 계산해야 해요.
+| 표 | 내용 | 접근 |
+|---|---|---|
+| `products` | 상품(가격 `price`, 할인율 `sale_rate`, 판매가 `final_price` 자동 계산, 배지, 사진, 썸네일 색) | 누구나 읽기(`is_active`만), 수정은 서버만 |
+| `product_sizes` | 상품별 사이즈·재고(`stock`, 0이면 품절) | 누구나 읽기, 수정은 서버만 |
+| `orders` | 주문 요약·금액 내역·상태(`pending`/`paid`/`failed`/`canceled`)·`stock_reserved` | 서버만 |
+| `order_items` | 주문 당시 상품명·가격·사이즈·수량 | 서버만 |
+
+- 보안 어드바이저의 `orders`·`order_items` "RLS Enabled No Policy"는 의도한 상태예요.
+- DB 함수 `reserve_order_stock(order_id)`/`release_order_stock(order_id)`: `stock_reserved` 플래그로 한 번만 차감·복구해요. `stock >= qty` 조건부 UPDATE라 마지막 1개는 한 명만 가져가요. service role만 실행할 수 있어요.
+- Edge Function `create-order`, `confirm-payment`, `guest-order`는 모두 `verify_jwt: true`이고 브라우저는 공개 anon 키로 호출해요.
+- 토스 시크릿 키는 함수 환경변수 `TOSS_SECRET_KEY`에서 읽고, 없으면 토스 문서용 테스트 시크릿 키를 써요. 운영 전에 Supabase 대시보드(Edge Functions → Secrets)에서 내 상점 시크릿 키로 설정해야 해요.
+- Supabase 도구(`mcp__…__list_tables`, `get_edge_function`, `apply_migration`, `deploy_edge_function`, `execute_sql`)는 `ToolSearch`로 스키마를 불러온 뒤 써요. 함수를 고치기 전엔 `get_edge_function`으로 배포본을 먼저 읽고, 고친 소스는 `supabase/functions/`에도 남기세요. 마이그레이션도 `supabase/migrations/`에 파일로 남기세요.
+- 비회원 주문 조회·취소는 주문번호 + 휴대폰 번호로만 확인해요. 2단계(회원)에서 로그인 기반으로 강화할 예정이에요.
 
 ## 토스페이먼츠 문서 참고
 

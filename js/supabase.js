@@ -1,9 +1,11 @@
 /* =========================================================
- * Supabase Edge Function 호출 도우미
- * - create-order    : 결제 요청 전에 주문을 'pending'으로 저장
- * - confirm-payment : 토스 결제 승인 API 호출 + 주문을 'paid'로 저장
- * 아래 anon 키는 브라우저에 공개돼도 되는 키예요. orders 테이블은 RLS로 막혀 있어서
- * 이 키로 DB를 직접 읽거나 쓸 수 없고, Edge Function만 거쳐서 접근해요.
+ * Supabase 호출 도우미 (모든 페이지에서 data.js보다 먼저 불러와요)
+ * - restGet()       : 상품·재고 읽기 (누구나 읽을 수 있게 열어 둔 표만)
+ * - create-order    : 금액 계산(dryRun) / 서버 계산 금액으로 'pending' 주문 저장
+ * - confirm-payment : 재고 차감 + 토스 결제 승인 + 주문을 'paid'로 저장
+ * - guest-order     : 비회원 주문 조회·취소(주문번호 + 휴대폰 번호)
+ * 아래 anon 키는 브라우저에 공개돼도 되는 키예요. 주문 표는 RLS로 막혀 있어서
+ * 이 키로 직접 읽거나 쓸 수 없고, Edge Function만 거쳐서 접근해요.
  * (토스 시크릿 키는 Edge Function 쪽에만 있어요.)
  * ======================================================= */
 
@@ -32,7 +34,16 @@ async function callFunction(name, body) {
   if (!res.ok) {
     const err = new Error(data.message || `요청에 실패했어요 (${res.status})`);
     err.code = data.code || String(res.status);
+    err.data = data;
     throw err;
   }
   return data;
+}
+
+async function restGet(path) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+  });
+  if (!res.ok) throw new Error(`데이터를 불러오지 못했어요 (${res.status})`);
+  return res.json();
 }

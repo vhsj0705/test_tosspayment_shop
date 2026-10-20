@@ -31,7 +31,8 @@ function writeJSON(storage, key, value) {
 /* ---------- 장바구니 ---------- */
 const Cart = {
   get() {
-    return readJSON(localStorage, CART_KEY, []).filter((it) => getProduct(it.id));
+    // 상품 목록을 아직 못 불러왔으면(PRODUCTS가 비어 있으면) 거르지 않아요.
+    return readJSON(localStorage, CART_KEY, []).filter((it) => !PRODUCTS.length || getProduct(it.id));
   },
   set(items) {
     writeJSON(localStorage, CART_KEY, items);
@@ -95,6 +96,7 @@ function renderHeader(active) {
         </form>
         <div class="header__util">
           <a href="#" class="hide-m">로그인</a>
+          <a href="order.html" class="hide-m">주문조회</a>
           <a href="#" class="hide-m">마이페이지</a>
           <button type="button" class="cart-btn" data-open-cart>
             장바구니 <span class="cart-count" id="cartCount">0</span>
@@ -171,6 +173,7 @@ function toast(msg) {
 /* ---------- 장바구니 드로어 ---------- */
 function openCart() {
   renderCart();
+  productsReady.then(renderCart, () => {});
   $("#cartDrawer").classList.add("is-open");
   $("#cartDrawer").setAttribute("aria-hidden", "false");
   $(".drawer-dim").classList.add("is-open");
@@ -252,6 +255,7 @@ function toggleLike(id) {
 }
 
 const BADGE_LABEL = { free: "무료배송", only: "단독" };
+const isSoldOut = (p) => p.sizes.length > 0 && p.soldout.length === p.sizes.length;
 
 function productCard(p, rank) {
   const liked = getLikes().includes(p.id);
@@ -269,21 +273,32 @@ function productCard(p, rank) {
         <p class="product-card__name">${p.name}</p>
         <div class="price-row"><span class="discount">${p.sale}%</span><span class="price">${won(p.finalPrice)}</span></div>
         <div class="product-card__meta"><span class="heart">♥ ${compact(p.likes)}</span><span>★ ${p.rating} (${compact(p.reviews)})</span></div>
-        ${p.badges.length ? `<div class="badges">${p.badges.map((b) => `<span class="badge badge--${b}">${BADGE_LABEL[b]}</span>`).join("")}</div>` : ""}
+        ${isSoldOut(p) || p.badges.length ? `<div class="badges">${isSoldOut(p) ? '<span class="badge badge--soldout">품절</span>' : ""}${p.badges.map((b) => `<span class="badge badge--${b}">${BADGE_LABEL[b]}</span>`).join("")}</div>` : ""}
       </div>
     </li>`;
 }
 
-function initListPage(catKey) {
+async function initListPage(catKey) {
   const cat = CATEGORIES[catKey];
   const state = { sub: "전체", sort: "popular", freeOnly: false };
+  const grid = $("#productGrid");
+
+  grid.innerHTML = `<li class="empty">상품을 불러오는 중이에요…</li>`;
+  let loaded;
+  try {
+    loaded = await productsReady;
+  } catch (err) {
+    console.error(err);
+    grid.innerHTML = `<li class="empty">상품을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.<br /><br /><button type="button" class="btn btn--line" onclick="location.reload()" style="width:160px">다시 불러오기</button></li>`;
+    return;
+  }
+  if (loaded.fromCache) toast("최신 상품 정보를 불러오지 못해 저장된 정보를 보여드려요");
+  updateCartCount();
   const all = PRODUCTS.filter((p) => p.cat === catKey);
 
   $("#subTabs").innerHTML = cat.subs
     .map((s) => `<button type="button" class="sub-tab ${s === "전체" ? "is-active" : ""}" data-sub="${s}">${s}</button>`)
     .join("");
-
-  const grid = $("#productGrid");
 
   function draw() {
     let list = all.filter((p) => (state.sub === "전체" || p.sub === state.sub) && (!state.freeOnly || p.badges.includes("free")));
@@ -364,6 +379,7 @@ function openProduct(id) {
       <div class="size-list">
         ${p.sizes.map((s) => `<button type="button" class="size-btn" data-size="${s}" ${p.soldout.includes(s) ? "disabled" : ""}>${s}</button>`).join("")}
       </div>
+      <p class="size-note" id="mStockNote"></p>
       <p class="option-label">수량</p>
       <div class="qty">
         <button type="button" data-d="-1" aria-label="수량 빼기">−</button>
@@ -377,15 +393,40 @@ function openProduct(id) {
       </div>
     </div>`;
 
+  // 남은 재고가 적으면 알려주고, 수량은 재고와 10개 중 작은 값까지만 올려요.
+  const maxQty = () => Math.min(10, sel.size ? p.stock[sel.size] ?? 10 : 10);
+  const paintStock = () => {
+    const left = sel.size ? p.stock[sel.size] : null;
+    $("#mStockNote").textContent = left != null && left > 0 && left <= 5 ? `${sel.size} 사이즈 ${left}개 남았어요` : "";
+    if (sel.qty > maxQty()) {
+      sel.qty = Math.max(1, maxQty());
+      $("#mQty").textContent = sel.qty;
+      $("#mTotal").textContent = won(p.finalPrice * sel.qty);
+    }
+  };
   $$(".size-btn", modal).forEach((b) =>
     b.addEventListener("click", () => {
       sel.size = b.dataset.size;
       $$(".size-btn", modal).forEach((x) => x.classList.toggle("is-selected", x === b));
+      paintStock();
     })
   );
+  refreshStock(p.id)
+    .then(() => {
+      $$(".size-btn", modal).forEach((b) => (b.disabled = p.soldout.includes(b.dataset.size)));
+      if (sel.size && p.soldout.includes(sel.size)) {
+        sel.size = null;
+        $$(".size-btn", modal).forEach((x) => x.classList.remove("is-selected"));
+        toast("선택한 사이즈가 방금 품절됐어요");
+      }
+      paintStock();
+    })
+    .catch(() => {});
   $$(".qty button", modal).forEach((b) =>
     b.addEventListener("click", () => {
-      sel.qty = Math.max(1, Math.min(10, sel.qty + +b.dataset.d));
+      const next = sel.qty + +b.dataset.d;
+      if (next > maxQty() && sel.size && maxQty() < 10) toast(`재고가 ${maxQty()}개 남았어요`);
+      sel.qty = Math.max(1, Math.min(maxQty(), next));
       $("#mQty").textContent = sel.qty;
       $("#mTotal").textContent = won(p.finalPrice * sel.qty);
     })
@@ -423,5 +464,6 @@ document.addEventListener("DOMContentLoaded", () => {
   renderHeader(page);
   renderFooter();
   renderOverlays();
+  productsReady.then(updateCartCount, () => {});
   if (CATEGORIES[page]) initListPage(page);
 });

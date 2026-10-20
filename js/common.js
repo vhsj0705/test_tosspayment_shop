@@ -315,6 +315,46 @@ function productCard(p, rank) {
     </li>`;
 }
 
+/* 검색엔진·AI가 읽는 상품 목록 구조화 데이터(JSON-LD). 상품은 DB에서 불러오니 불러온 뒤에 붙여요. */
+function renderProductListLd(cat, list) {
+  const pageUrl = $('link[rel="canonical"]')?.href || location.href;
+  const data = {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    name: `${STORE_NAME} ${cat.label}`,
+    url: pageUrl,
+    numberOfItems: list.length,
+    itemListElement: list.map((p, i) => ({
+      "@type": "ListItem",
+      position: i + 1,
+      item: {
+        "@type": "Product",
+        sku: p.id,
+        name: p.name,
+        brand: { "@type": "Brand", name: p.brand },
+        category: `${cat.label} > ${p.sub}`,
+        ...(p.image && { image: p.image }),
+        offers: {
+          "@type": "Offer",
+          price: p.finalPrice,
+          priceCurrency: "KRW",
+          availability: isSoldOut(p) ? "https://schema.org/OutOfStock" : "https://schema.org/InStock",
+          url: pageUrl,
+        },
+        ...(p.reviews > 0 && { aggregateRating: { "@type": "AggregateRating", ratingValue: p.rating, reviewCount: p.reviews } }),
+      },
+    })),
+  };
+  let el = $("#productListLd");
+  if (!el) {
+    el = document.createElement("script");
+    el.type = "application/ld+json";
+    el.id = "productListLd";
+    document.head.appendChild(el);
+  }
+  el.textContent = JSON.stringify(data);
+}
+
 async function initListPage(catKey) {
   const cat = CATEGORIES[catKey];
   const state = { sub: "전체", sort: "popular", freeOnly: false };
@@ -333,6 +373,7 @@ async function initListPage(catKey) {
   if (loaded.fromCache) toast("최신 상품 정보를 불러오지 못해 저장된 정보를 보여드려요");
   updateCartCount();
   const all = PRODUCTS.filter((p) => p.cat === catKey);
+  renderProductListLd(cat, all);
 
   $("#subTabs").innerHTML = cat.subs
     .map((s) => `<button type="button" class="sub-tab ${s === "전체" ? "is-active" : ""}" data-sub="${s}">${s}</button>`)

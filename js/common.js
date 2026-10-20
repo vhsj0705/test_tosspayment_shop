@@ -4,7 +4,6 @@
 
 const STORE_NAME = "FITLOG";
 const CART_KEY = "fitlog-cart";
-const LIKE_KEY = "fitlog-likes";
 const DIRECT_KEY = "fitlog-direct-order";
 
 const won = (n) => n.toLocaleString("ko-KR") + "원";
@@ -95,7 +94,7 @@ function renderHeader(active) {
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8a8a8a" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
         </form>
         <div class="header__util">
-          <a href="#" class="hide-m">로그인</a>
+          <a href="login.html" class="auth-link" id="authLink">로그인</a>
           <a href="order.html" class="hide-m">주문조회</a>
           <a href="#" class="hide-m">마이페이지</a>
           <button type="button" class="cart-btn" data-open-cart>
@@ -108,6 +107,19 @@ function renderHeader(active) {
       </nav>
     </header>`;
   updateCartCount();
+
+  // 로그인 상태에 따라 "로그인" ↔ "로그아웃"
+  authReady.then((user) => {
+    const link = $("#authLink");
+    if (!user || !link) return;
+    link.textContent = "로그아웃";
+    link.title = user.email;
+    link.addEventListener("click", async (e) => {
+      e.preventDefault();
+      await sb.auth.signOut();
+      location.reload();
+    });
+  });
 }
 
 function renderFooter() {
@@ -242,23 +254,48 @@ function renderCart() {
 }
 
 /* ---------- 상품 카드 / 목록 ---------- */
-function getLikes() {
-  return readJSON(localStorage, LIKE_KEY, []);
-}
-function toggleLike(id) {
-  const likes = getLikes();
-  const i = likes.indexOf(id);
-  if (i > -1) likes.splice(i, 1);
-  else likes.push(id);
-  writeJSON(localStorage, LIKE_KEY, likes);
-  return i === -1;
+/* 좋아요(찜): 로그인한 회원만 쓸 수 있고, DB wishlists 표에 회원별로 저장돼요(본인 것만 읽고 쓸 수 있어요). */
+const Likes = {
+  ids: new Set(),
+  // 로그인했으면 내 좋아요 목록을 불러와요.
+  ready: authReady.then(async (user) => {
+    if (!user) return;
+    const { data, error } = await sb.from("wishlists").select("product_id");
+    if (error) throw error;
+    data.forEach((r) => Likes.ids.add(r.product_id));
+  }).catch((err) => console.error(err)),
+  has(id) {
+    return Likes.ids.has(id);
+  },
+  // 바뀐 상태(true = 좋아요)를 돌려줘요. 저장에 실패하면 오류를 던져요.
+  async toggle(id) {
+    if (Likes.ids.has(id)) {
+      const { error } = await sb.from("wishlists").delete().eq("product_id", id);
+      if (error) throw error;
+      Likes.ids.delete(id);
+      return false;
+    }
+    const { error } = await sb.from("wishlists").insert({ product_id: id });
+    if (error && error.code !== "23505") throw error; // 23505: 이미 좋아요한 상품
+    Likes.ids.add(id);
+    return true;
+  },
+};
+// 예전에 브라우저에만 저장하던 좋아요는 더 이상 쓰지 않아요.
+try {
+  localStorage.removeItem("fitlog-likes");
+} catch (e) {}
+
+function goLogin(message) {
+  const here = location.pathname.split("/").pop() || "index.html";
+  if (confirm(message)) location.href = `login.html?next=${encodeURIComponent(here + location.search)}`;
 }
 
 const BADGE_LABEL = { free: "무료배송", only: "단독" };
 const isSoldOut = (p) => p.sizes.length > 0 && p.soldout.length === p.sizes.length;
 
 function productCard(p, rank) {
-  const liked = getLikes().includes(p.id);
+  const liked = Likes.has(p.id);
   return `
     <li class="product-card" data-id="${p.id}" tabindex="0">
       <div class="product-card__thumb">
@@ -292,6 +329,7 @@ async function initListPage(catKey) {
     grid.innerHTML = `<li class="empty">상품을 불러오지 못했어요. 잠시 후 다시 시도해 주세요.<br /><br /><button type="button" class="btn btn--line" onclick="location.reload()" style="width:160px">다시 불러오기</button></li>`;
     return;
   }
+  await Likes.ready;
   if (loaded.fromCache) toast("최신 상품 정보를 불러오지 못해 저장된 정보를 보여드려요");
   updateCartCount();
   const all = PRODUCTS.filter((p) => p.cat === catKey);
@@ -333,13 +371,22 @@ async function initListPage(catKey) {
     draw();
   });
 
-  grid.addEventListener("click", (e) => {
+  grid.addEventListener("click", async (e) => {
     const like = e.target.closest("[data-like]");
     if (like) {
       e.stopPropagation();
-      const on = toggleLike(like.dataset.like);
-      like.classList.toggle("is-liked", on);
-      toast(on ? "좋아요한 상품에 추가했어요" : "좋아요를 취소했어요");
+      if (!(await authReady)) return goLogin("좋아요는 로그인한 회원만 쓸 수 있어요. 로그인할까요?");
+      like.disabled = true;
+      try {
+        const on = await Likes.toggle(like.dataset.like);
+        like.classList.toggle("is-liked", on);
+        toast(on ? "좋아요한 상품에 추가했어요" : "좋아요를 취소했어요");
+      } catch (err) {
+        console.error(err);
+        toast("좋아요를 저장하지 못했어요");
+      } finally {
+        like.disabled = false;
+      }
       return;
     }
     const card = e.target.closest(".product-card");

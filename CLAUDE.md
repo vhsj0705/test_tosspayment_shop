@@ -24,7 +24,8 @@ http://localhost:5500 에서 확인해요. `serve.ps1`은 Node/Python 없이 도
 
 `prd.md`에 Supabase DB 연동 PRD(5단계)가 있어요. 단계 순서대로 진행해요.
 - **1단계(결제 안전) 완료**: 상품·재고 DB화, 서버 금액 계산, 주문 상세, 재고 차감·복구, 비회원 주문 조회·취소(환불).
-- 다음은 2단계(회원: 로그인·배송지·주문서 자동 입력)예요.
+- 2단계 중 **이메일 로그인·회원가입**과 3단계 중 **좋아요(찜) 회원 저장**을 먼저 했어요. 좋아요는 로그인한 회원만 쓸 수 있어요.
+- 남은 2단계: 내 정보·배송지, 주문서 자동 입력, 회원 결제(`customerKey`), 회원 주문 보호.
 
 사용자는 비개발자예요. 설명은 기능 중심으로 하고 코드 용어는 줄이세요.
 
@@ -32,13 +33,14 @@ http://localhost:5500 에서 확인해요. `serve.ps1`은 Node/Python 없이 도
 
 전역 스크립트 방식이에요(ES 모듈 아님). 모든 페이지가 같은 순서로 스크립트를 불러오고, 뒤 파일이 앞 파일의 전역을 그대로 써요.
 
-`js/supabase.js` → `js/data.js` → `js/common.js` → (주문서만) `js/checkout.js`
+supabase-js CDN(`@supabase/supabase-js@2.45.4` UMD, 전역 `supabase`) → `js/supabase.js` → `js/data.js` → `js/common.js` → (주문서만) `js/checkout.js`. 새 페이지를 만들면 이 순서를 그대로 넣으세요.
 
-- **`js/supabase.js`**: Supabase 주소·공개 anon 키, `restGet()`(공개 표 읽기), `callFunction()`(Edge Function 호출, 실패 시 `err.code`·`err.data`).
+- **`js/supabase.js`**: Supabase 주소·공개 anon 키, `restGet()`(공개 표 읽기), `callFunction()`(Edge Function 호출, 실패 시 `err.code`·`err.data`), 로그인용 클라이언트 `sb`와 `authReady`(Promise → 로그인한 user 또는 null). 로그인 상태는 supabase-js가 `localStorage`에 보관해요.
 - **`js/data.js`**: `CATEGORIES`, 상품을 DB에서 불러오는 `productsReady`(Promise)와 `PRODUCTS` 배열, `getProduct()`, `refreshStock(id)`, SVG 썸네일 `ART`/`renderThumb()`. DB 행은 `toProduct()`가 화면용 모양(`cat`, `sale`, `finalPrice`, `sizes`, `stock`, `soldout`, `image`)으로 바꿔요. **`PRODUCTS`는 처음엔 비어 있으니 쓰기 전에 `await productsReady`** 하세요. DB를 못 읽으면 `localStorage`(`fitlog-products-cache`)의 마지막 목록을 써요. `renderThumb()`는 사진 뒤에 SVG 일러스트를 깔아 둬서 사진이 안 불러와지면 SVG가 보여요. 사진을 바꿀 땐(`products.photo_id`/`photo_by`) 다른 회사 로고가 보이는 사진은 피하고 README "이미지 출처"도 같이 고치세요.
-- **`js/common.js`**: 모든 페이지의 부트스트랩. `DOMContentLoaded`에서 `<body data-page="...">` 값을 읽어 헤더/푸터를 주입하고, 장바구니 드로어·상품 모달·토스트를 body 끝에 붙여요. `data-page`가 `CATEGORIES`의 키(`top`/`shoes`/`pants`)이면 `initListPage()`로 목록을 그려요(로딩·오류 표시 포함). 상품 모달은 열 때 `refreshStock()`으로 재고를 다시 읽어요. 장바구니(`Cart`)와 화면용 금액 추정(`calcOrder`)도 여기 있어요.
+- **`js/common.js`**: 모든 페이지의 부트스트랩. `DOMContentLoaded`에서 `<body data-page="...">` 값을 읽어 헤더/푸터를 주입하고, 장바구니 드로어·상품 모달·토스트를 body 끝에 붙여요. `data-page`가 `CATEGORIES`의 키(`top`/`shoes`/`pants`)이면 `initListPage()`로 목록을 그려요(로딩·오류 표시 포함). 상품 모달은 열 때 `refreshStock()`으로 재고를 다시 읽어요. 헤더의 `#authLink`는 로그인 상태면 "로그아웃"이 돼요. 좋아요는 `Likes`(로그인 회원의 `wishlists` 표, `Likes.ready`/`has`/`toggle`)이고, 로그인 안 했으면 `goLogin()`으로 로그인 페이지(`login.html?next=현재 페이지`)를 권해요. 장바구니(`Cart`)와 화면용 금액 추정(`calcOrder`)도 여기 있어요.
 - **목록 페이지**(`top.html`, `shoes.html`, `pants.html`): 마크업이 같고 `data-page`, 제목, 프로모션 문구만 달라요. 카테고리를 추가하려면 `CATEGORIES`, DB `products.category` CHECK 제약, 서버 함수를 같이 고치고 같은 마크업의 HTML을 하나 더 만들어요.
 - **`index.html`은 `top.html`을 복사한 파일이에요.** Vercel에서 `/`가 빈 화면이 되지 않게 리다이렉트 대신 실제 페이지로 둔 거예요. `top.html`을 고치면 `index.html`도 같이 고치세요.
+- **`login.html`**: 이메일 로그인·회원가입 탭. `?next=`(같은 사이트 `.html`만)로 돌아갈 페이지를 받아요. 가입 시 이메일 확인이 켜져 있으면 확인 메일 안내를 보여줘요.
 - **`order.html`**: 비회원 주문 조회·취소(주문번호 + 휴대폰 번호). 헤더의 "주문조회"와 결제 완료 화면에서 들어와요.
 - `$(sel)`은 요소 하나, `$$(sel)`은 배열이에요. 스크립트로 파일을 고칠 때 JS `String.replace`의 바꿀 문자열에 `$$`를 넣으면 `$` 하나로 바뀌니 조심하세요.
 
@@ -65,12 +67,16 @@ http://localhost:5500 에서 확인해요. `serve.ps1`은 Node/Python 없이 도
 | `product_sizes` | 상품별 사이즈·재고(`stock`, 0이면 품절) | 누구나 읽기, 수정은 서버만 |
 | `orders` | 주문 요약·금액 내역·상태(`pending`/`paid`/`failed`/`canceled`)·`stock_reserved` | 서버만 |
 | `order_items` | 주문 당시 상품명·가격·사이즈·수량 | 서버만 |
+| `wishlists` | 회원별 좋아요(`user_id`, `product_id`) | 로그인한 본인만 읽기·추가·삭제 |
 
 - 보안 어드바이저의 `orders`·`order_items` "RLS Enabled No Policy"는 의도한 상태예요.
 - DB 함수 `reserve_order_stock(order_id)`/`release_order_stock(order_id)`: `stock_reserved` 플래그로 한 번만 차감·복구해요. `stock >= qty` 조건부 UPDATE라 마지막 1개는 한 명만 가져가요. service role만 실행할 수 있어요.
 - Edge Function `create-order`, `confirm-payment`, `guest-order`는 모두 `verify_jwt: true`이고 브라우저는 공개 anon 키로 호출해요.
 - 토스 시크릿 키는 함수 환경변수 `TOSS_SECRET_KEY`에서 읽고, 없으면 토스 문서용 테스트 시크릿 키를 써요. 운영 전에 Supabase 대시보드(Edge Functions → Secrets)에서 내 상점 시크릿 키로 설정해야 해요.
 - Supabase 도구(`mcp__…__list_tables`, `get_edge_function`, `apply_migration`, `deploy_edge_function`, `execute_sql`)는 `ToolSearch`로 스키마를 불러온 뒤 써요. 함수를 고치기 전엔 `get_edge_function`으로 배포본을 먼저 읽고, 고친 소스는 `supabase/functions/`에도 남기세요. 마이그레이션도 `supabase/migrations/`에 파일로 남기세요.
+- 로그인은 Supabase Auth(이메일+비밀번호)예요. 가입 확인 메일 링크가 제대로 돌아오려면 대시보드 Authentication → URL Configuration의 Site URL·Redirect URLs에 운영 주소와 `http://localhost:5500/**`가 있어야 해요. 기본 메일 발송은 시간당 몇 통으로 제한돼요.
+- 로컬 테스트 계정은 `.claude/test-account.txt`(Git 제외)에 있어요. 브라우저 확인은 이 계정으로 하고, 가입 테스트로 실제 메일을 보내지 마세요.
+- 보안 어드바이저의 "Leaked Password Protection Disabled" 경고는 대시보드 Auth 설정에서 켤 수 있어요(유료 플랜 기능일 수 있음).
 - 비회원 주문 조회·취소는 주문번호 + 휴대폰 번호로만 확인해요. 2단계(회원)에서 로그인 기반으로 강화할 예정이에요.
 
 ## 토스페이먼츠 문서 참고

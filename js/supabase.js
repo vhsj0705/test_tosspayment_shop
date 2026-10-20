@@ -47,3 +47,11 @@ async function restGet(path) {
   if (!res.ok) throw new Error(`데이터를 불러오지 못했어요 (${res.status})`);
   return res.json();
 }
+
+/* ---------- 로그인(Supabase Auth) ----------
+ * 브라우저 라이브러리(supabase-js, 각 페이지에서 CDN으로 먼저 불러와요)가 로그인 상태를 브라우저에 보관해요.
+ * authReady: 로그인한 회원(user) 또는 null */
+const sb = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+const authReady = sb
+  ? sb.auth.getSession().then(({ data }) => (data.session ? data.session.user : null), () => null)
+  : Promise.resolve(null);

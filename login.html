@@ -108,12 +108,21 @@
         $("#signedInEmail").textContent = user.email || m.name || m.full_name || m.nickname || "";
       };
 
-      // 간편 로그인에서 돌아왔는데 실패한 경우(취소 등)
-      const hash = new URLSearchParams(location.hash.slice(1));
-      const oauthError = params.get("error_description") || hash.get("error_description");
-      if (oauthError) $("#socialMsg").textContent = "로그인하지 못했어요. 다시 시도해 주세요. (" + oauthError + ")";
+      // 메일 링크·간편 로그인에서 돌아왔는데 실패한 경우(만료, 취소 등)
+      const returnError = params.get("error_description") || AUTH_RETURN.get("error_description");
+      if (returnError) {
+        $("#socialMsg").textContent = /expired|invalid/i.test(returnError)
+          ? "인증 링크가 만료됐거나 이미 사용됐어요. 이미 인증했다면 그대로 로그인해 주세요."
+          : "로그인하지 못했어요. 다시 시도해 주세요. (" + returnError + ")";
+      }
 
       const user = await authReady;
+      // 가입 확인 메일의 링크를 눌러 돌아온 경우
+      if (user && AUTH_RETURN.get("type") === "signup") {
+        showSignedIn(user);
+        $("#signedIn h1").textContent = "이메일 인증이 완료됐어요";
+        return;
+      }
       if (user) {
         // 로그인하러 왔다가 막 돌아온 경우엔 원래 보던 페이지로 보내요.
         if (next) return location.replace(nextUrl);
@@ -189,7 +198,7 @@
           const { data, error } = await sb.auth.signUp({
             email,
             password,
-            options: { emailRedirectTo: new URL("login.html", location.href).href },
+            options: { emailRedirectTo: `${SITE_URL}/login.html` },
           });
           if (error) throw error;
           if (data.session) {

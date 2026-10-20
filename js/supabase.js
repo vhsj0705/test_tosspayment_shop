@@ -51,6 +51,12 @@ async function restGet(path) {
 /* ---------- 로그인(Supabase Auth) ----------
  * 브라우저 라이브러리(supabase-js, 각 페이지에서 CDN으로 먼저 불러와요)가 로그인 상태를 브라우저에 보관해요.
  * authReady: 로그인한 회원(user) 또는 null */
+// 가입 확인 메일의 링크는 로컬에서 가입해도 항상 운영 사이트로 보내요.
+// (이 주소는 Supabase 대시보드 Authentication → URL Configuration의 Redirect URLs에 있어야 해요. 없으면 Site URL로 가요.)
+const SITE_URL = "https://testtosspaymentshop-xv13.vercel.app";
+// 메일 링크·간편 로그인에서 돌아오면 주소 # 뒤에 결과(type=signup, error_description 등)가 붙어요.
+// supabase-js가 곧 지워 버리므로 먼저 읽어 둬요.
+const AUTH_RETURN = new URLSearchParams(location.hash.slice(1));
 const sb = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 const authReady = sb
   ? sb.auth.getSession().then(({ data }) => (data.session ? data.session.user : null), () => null)

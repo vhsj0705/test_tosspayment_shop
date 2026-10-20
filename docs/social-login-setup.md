@@ -17,7 +17,7 @@ Supabase 대시보드 → Authentication → **URL Configuration**
   - `https://testtosspaymentshop-xv13.vercel.app/**`
   - `http://localhost:5500/**`
 
-이게 없으면 로그인 뒤 엉뚱한 주소로 돌아가요.
+이게 없으면 로그인 뒤 엉뚱한 주소로 돌아가요. **이메일 가입 인증 링크가 `localhost:3000`으로 가는 것도 이 설정이 없어서예요.**
 
 ## 1. 카카오
 

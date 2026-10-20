@@ -16,8 +16,8 @@ powershell -ExecutionPolicy Bypass -File serve.ps1
 
 http://localhost:5500 에서 확인해요. `serve.ps1`은 Node/Python 없이 도는 `HttpListener` 정적 서버예요. Node.js가 있으면 `npx serve -l 5500 .`도 돼요.
 
-- 이 PC에는 Git(`C:\Program Files\Git`)과 Node.js LTS(v24)가 winget으로 설치돼 있어요. 설치 전에 열린 셸은 PATH에 없을 수 있어요. 그땐 머신/사용자 PATH를 다시 읽거나 전체 경로로 실행하세요.
-- 배포는 Vercel이에요. `vercel.json`이 프레임워크·빌드 없이 루트 폴더를 그대로 정적 배포하도록 고정해요. `main`에 푸시하면 재배포돼요.
+- 작업하는 PC마다 도구가 달라요. 어떤 PC는 Git(`C:\Program Files\Git`)과 Node.js LTS(v24)가 winget으로 설치돼 있고(설치 전에 열린 셸은 PATH에 없을 수 있으니 PATH를 다시 읽거나 전체 경로로 실행), 어떤 PC는 둘 다 없어요. 먼저 `git`이 있는지 확인하세요.
+- Git이 없으면 저장소가 공개라서 `https://codeload.github.com/vhsj0705/test_tosspayment_shop/zip/refs/heads/main`으로 받아 고친 뒤, Claude in Chrome으로 GitHub "Upload files"(`/upload/main`)에서 한 커밋으로 올려요. GitHub 페이지는 CSP 때문에 `localhost`를 `fetch`할 수 없어서, `serve.ps1`로 띄운 로컬 페이지를 GitHub 탭에서 `window.open`하고 그 페이지가 파일을 `postMessage`로 `window.opener`에 넘겨요. 받은 파일은 `DataTransfer`로 `#upload-manifest-files-input`에 넣어요. 파일 이름을 `js/common.js`처럼 주면 하위 폴더에 들어가요. 이렇게 띄운 임시 페이지는 커밋하지 말고 지우세요.- 배포는 Vercel이에요. `vercel.json`이 프레임워크·빌드 없이 루트 폴더를 그대로 정적 배포하도록 고정해요. `main`에 푸시하면 재배포돼요.
 - 운영 주소는 https://testtosspaymentshop-xv13.vercel.app 이에요(Vercel 프로젝트 `test_tosspayment_shop-xv13`, GitHub 저장소 연동). `vercel login`은 PC 이름에 한글이 있어서 `ByteString` 오류로 실패하니, CLI 대신 대시보드의 Git 연동을 쓰세요.
 
 ## DB 연동 계획

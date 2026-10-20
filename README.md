@@ -44,3 +44,11 @@ http://localhost:5500 접속
 > 시크릿 키는 절대 프론트엔드 코드나 저장소에 올리지 마세요.
 
 참고: https://docs.tosspayments.com/guides/v2/payment-widget/integration
+
+## 이미지 출처
+
+상품 사진은 [Unsplash](https://unsplash.com)에서 가져왔어요. [Unsplash License](https://unsplash.com/license)에 따라 상업적으로도 쓸 수 있고 출처 표기는 필수가 아니지만, 촬영자를 밝혀 둬요. 상품과 사진의 대응은 `js/data.js`의 `PHOTOS`에 있고, 사진이 불러와지지 않으면 SVG 일러스트가 대신 보여요.
+
+Geoffroy Danest, Haryo Setyadi, Ryan Hoffman, Nimble Made, Jannes Jacobs, Kateryna Hliznitsova, Ali Saadat, Jonathan Adams, Mediamodifier, Aymen Chabani, Irene Kredenets, taha siddiqui, Maxim Hopman, Axel Bimashanda, Elie Dagher, Nelibar Shoes, mostafa mahmoudi, SJ, Matthew Moloney, TuanAnh Blue, sammy swae, engin akyurt, Kyle Loftus, Zoe
+
+사진 속 인물은 모델 릴리스가 확인되지 않았어요. 실제 서비스로 운영한다면 인물 사진은 직접 촬영하거나 계약한 사진으로 바꾸는 걸 권해요.

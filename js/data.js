@@ -62,10 +62,49 @@ const PRODUCTS = [
   { id: "P009", cat: "pants", sub: "숏 팬츠", art: "shorts", brand: "STRIDE", name: "러닝 나일론 쇼츠 네이비", price: 35000, sale: 10, bg: "#efebe5", main: "#1f2b4a", accent: "#2f7df6", likes: 2980, reviews: 420, rating: 4.6, badges: [] },
 ];
 
+/* ---------- 상품 사진 (Unsplash, Unsplash License: 상업적 이용 가능) ----------
+ * photo: images.unsplash.com 의 photo-XXXX 부분, by: 촬영자
+ * 출처 목록은 README.md 의 "이미지 출처"에도 정리해 뒀어요. */
+const PHOTOS = {
+  T001: ["1621951767587-b24334f11c65", "Geoffroy Danest"],
+  T002: ["1581655353564-df123a1eb820", "Haryo Setyadi"],
+  T003: ["1618354691551-44de113f0164", "Ryan Hoffman"],
+  T004: ["1602810316693-3667c854239a", "Nimble Made"],
+  T005: ["1556821840-3a63f95609a7", "Jannes Jacobs"],
+  T006: ["1634901581982-6b408cf4226a", "Kateryna Hliznitsova"],
+  T007: ["1618354691438-25bc04584c23", "Ryan Hoffman"],
+  T008: ["1578768079052-aa76e52ff62e", "Ali Saadat"],
+  T009: ["1782227293813-040b9f9ce99e", "Jonathan Adams"],
+  T010: ["1620799140408-edc6dcb6d633", "Mediamodifier"],
+  S001: ["1561282109-3a8f490997cc", "Aymen Chabani"],
+  S002: ["1560769629-975ec94e6a86", "Irene Kredenets"],
+  S003: ["1760616172899-0681b97a2de3", "taha siddiqui"],
+  S004: ["1605812860427-4024433a70fd", "Maxim Hopman"],
+  S005: ["1641997465126-c73cc4070337", "Axel Bimashanda"],
+  S006: ["1720019315323-5e2b98a58ba8", "Elie Dagher"],
+  S007: ["1676121270762-47c8d3a7b9d5", "Nelibar Shoes"],
+  S008: ["1605732440685-d0654d81aa30", "mostafa mahmoudi"],
+  S009: ["1727061180303-d91cdeca6f9c", "SJ"],
+  P001: ["1624378440847-4a64ee1a889d", "Matthew Moloney"],
+  P002: ["1718252540511-e958742e4165", "TuanAnh Blue"],
+  P003: ["1766575696324-5b65330f23c2", "sammy swae"],
+  P004: ["1602573991155-21f0143bb45c", "engin akyurt"],
+  P005: ["1591195853828-11db59a44f6b", "engin akyurt"],
+  P006: ["1714143136372-ddaf8b606da7", "TuanAnh Blue"],
+  P007: ["1548883354-7622d03aca27", "Kyle Loftus"],
+  P008: ["1619032209422-fc090f6a3f5f", "Zoe"],
+  P009: ["1789110520350-db58d2271c63", "engin akyurt"],
+};
+
 PRODUCTS.forEach((p) => {
   p.finalPrice = Math.round((p.price * (1 - p.sale / 100)) / 100) * 100;
   p.sizes = p.cat === "top" ? TOP_SIZES : p.cat === "shoes" ? SHOE_SIZES : PANTS_SIZES;
   p.soldout = p.soldout || [];
+  const photo = PHOTOS[p.id];
+  if (photo) {
+    p.image = `https://images.unsplash.com/photo-${photo[0]}?auto=format&fit=crop&w=600&h=720&q=75`;
+    p.credit = photo[1];
+  }
 });
 
 function getProduct(id) {
@@ -138,9 +177,12 @@ const ART = {
     <path d="M266 288 Q340 300 405 324" fill="none" stroke="${p.accent}" stroke-width="4"/>`,
 };
 
+/* 사진이 있으면 사진을, 불러오지 못하면 뒤에 깔린 SVG 일러스트가 그대로 보여요. */
 function renderThumb(p) {
-  return `<svg viewBox="0 0 500 600" preserveAspectRatio="xMidYMid slice" role="img" aria-label="${p.name}">
+  const svg = `<svg viewBox="0 0 500 600" preserveAspectRatio="xMidYMid slice" role="img" aria-label="${p.name}">
     <rect width="500" height="600" fill="${p.bg}"/>
     <g ${p.cat === "shoes" ? 'transform="translate(0 -40)"' : ""}>${ART[p.art](p)}</g>
   </svg>`;
+  if (!p.image) return svg;
+  return `<span class="thumb">${svg}<img class="thumb__img" src="${p.image}" alt="${p.name}" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()" /></span>`;
 }

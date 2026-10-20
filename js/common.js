@@ -119,6 +119,7 @@ function renderFooter() {
         <p>(주)핏로그 · 대표 홍길동 · 사업자등록번호 000-00-00000 · 통신판매업신고 제0000-서울-0000호</p>
         <p>고객센터 1588-0000 (평일 10:00~17:00) · help@fitlog.example</p>
         <p>본 사이트는 퍼블리싱 예시이며, 결제는 토스페이먼츠 테스트 환경에서 진행돼요.</p>
+        <p>상품 사진: <a href="https://unsplash.com" target="_blank" rel="noopener noreferrer" style="text-decoration:underline">Unsplash</a> (Unsplash License) · 촬영자 목록은 저장소 README 참고</p>
       </div>
     </footer>`;
 }

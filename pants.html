@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>바지 | FITLOG</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body data-page="pants">
+  <div id="header"></div>
+
+  <main class="inner">
+    <section class="page-head">
+      <p class="breadcrumb"><span>홈</span><span>바지</span></p>
+      <h1 class="page-title">바지<small>PANTS</small></h1>
+      <div class="sub-tabs" id="subTabs" role="tablist" aria-label="세부 카테고리"></div>
+
+      <div class="promo">
+        <a href="#" class="promo__card promo__card--a"><em>BEST SELLER</em><strong>핏 좋은 와이드<br>데님 모음</strong></a>
+        <a href="#" class="promo__card promo__card--b"><em>오피스룩</em><strong>세미와이드 슬랙스<br>2장 구매 시 10%</strong></a>
+        <a href="#" class="promo__card promo__card--c"><em>스트릿</em><strong>카고 팬츠<br>시즌 오프 35%</strong></a>
+      </div>
+    </section>
+
+    <section aria-label="상품 목록">
+      <div class="toolbar">
+        <p class="toolbar__count">총 <b id="productCount">0</b>개 상품</p>
+        <div class="toolbar__right">
+          <label class="filter-chip"><input type="checkbox" id="freeOnly" /> 무료배송</label>
+          <label class="blind" for="sortSelect">정렬</label>
+          <select class="sort-select" id="sortSelect">
+            <option value="popular">인기순</option>
+            <option value="low">낮은 가격순</option>
+            <option value="high">높은 가격순</option>
+            <option value="sale">할인율순</option>
+            <option value="review">후기 많은순</option>
+          </select>
+        </div>
+      </div>
+      <ul class="product-grid" id="productGrid"></ul>
+    </section>
+  </main>
+
+  <div id="footer"></div>
+
+  <script src="js/data.js"></script>
+  <script src="js/common.js"></script>
+</body>
+</html>

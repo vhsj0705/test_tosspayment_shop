@@ -13,7 +13,7 @@
 | `success.html` | 결제 성공(successUrl), 서버 승인 결과·주문 상세 |
 | `fail.html` | 결제 실패(failUrl) |
 | `order.html` | 비회원 주문 조회·취소(주문번호 + 휴대폰 번호) |
-| `login.html` | 이메일 로그인·회원가입 |
+| `login.html` | 간편 로그인(카카오·네이버·구글) + 이메일 로그인·가입. 설정: `docs/social-login-setup.md` |
 
 공통 기능: 세부 카테고리 탭, 무료배송 필터, 정렬, 좋아요(로그인 회원 전용, 계정에 저장), 상품 상세 모달(사이즈/수량, 실시간 재고), 장바구니 드로어(localStorage), 바로 구매.
 

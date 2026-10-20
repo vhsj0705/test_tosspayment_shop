@@ -40,7 +40,7 @@ supabase-js CDN(`@supabase/supabase-js@2.45.4` UMD, 전역 `supabase`) → `js/s
 - **`js/common.js`**: 모든 페이지의 부트스트랩. `DOMContentLoaded`에서 `<body data-page="...">` 값을 읽어 헤더/푸터를 주입하고, 장바구니 드로어·상품 모달·토스트를 body 끝에 붙여요. `data-page`가 `CATEGORIES`의 키(`top`/`shoes`/`pants`)이면 `initListPage()`로 목록을 그려요(로딩·오류 표시 포함). 상품 모달은 열 때 `refreshStock()`으로 재고를 다시 읽어요. 헤더의 `#authLink`는 로그인 상태면 "로그아웃"이 돼요. 좋아요는 `Likes`(로그인 회원의 `wishlists` 표, `Likes.ready`/`has`/`toggle`)이고, 로그인 안 했으면 `goLogin()`으로 로그인 페이지(`login.html?next=현재 페이지`)를 권해요. 장바구니(`Cart`)와 화면용 금액 추정(`calcOrder`)도 여기 있어요.
 - **목록 페이지**(`top.html`, `shoes.html`, `pants.html`): 마크업이 같고 `data-page`, 제목, 프로모션 문구만 달라요. 카테고리를 추가하려면 `CATEGORIES`, DB `products.category` CHECK 제약, 서버 함수를 같이 고치고 같은 마크업의 HTML을 하나 더 만들어요.
 - **`index.html`은 `top.html`을 복사한 파일이에요.** Vercel에서 `/`가 빈 화면이 되지 않게 리다이렉트 대신 실제 페이지로 둔 거예요. `top.html`을 고치면 `index.html`도 같이 고치세요.
-- **`login.html`**: 이메일 로그인·회원가입 탭. `?next=`(같은 사이트 `.html`만)로 돌아갈 페이지를 받아요. 가입 시 이메일 확인이 켜져 있으면 확인 메일 안내를 보여줘요.
+- **`login.html`**: 간편 로그인(카카오 `kakao`, 네이버 `custom:naver`, 구글 `google`)이 메인이고, 이메일 로그인·가입은 "이메일로 로그인 · 가입" 아래 접혀 있어요. 버튼마다 `isProviderReady()`가 `/auth/v1/authorize`를 `redirect: "manual"`로 찔러 보고, 대시보드에서 안 켠 제공자는 "(준비 중)"으로 비활성화해요. 간편 로그인은 `signInWithOAuth({ redirectTo: login.html?next=... })`로 돌아오고, 로그인 상태로 `next`가 있으면 바로 그 페이지로 보내요. `?next=`는 같은 사이트 `.html`만 받아요. 제공자 설정 방법은 `docs/social-login-setup.md`.
 - **`order.html`**: 비회원 주문 조회·취소(주문번호 + 휴대폰 번호). 헤더의 "주문조회"와 결제 완료 화면에서 들어와요.
 - `$(sel)`은 요소 하나, `$$(sel)`은 배열이에요. 스크립트로 파일을 고칠 때 JS `String.replace`의 바꿀 문자열에 `$$`를 넣으면 `$` 하나로 바뀌니 조심하세요.
 
@@ -74,7 +74,7 @@ supabase-js CDN(`@supabase/supabase-js@2.45.4` UMD, 전역 `supabase`) → `js/s
 - Edge Function `create-order`, `confirm-payment`, `guest-order`는 모두 `verify_jwt: true`이고 브라우저는 공개 anon 키로 호출해요.
 - 토스 시크릿 키는 함수 환경변수 `TOSS_SECRET_KEY`에서 읽고, 없으면 토스 문서용 테스트 시크릿 키를 써요. 운영 전에 Supabase 대시보드(Edge Functions → Secrets)에서 내 상점 시크릿 키로 설정해야 해요.
 - Supabase 도구(`mcp__…__list_tables`, `get_edge_function`, `apply_migration`, `deploy_edge_function`, `execute_sql`)는 `ToolSearch`로 스키마를 불러온 뒤 써요. 함수를 고치기 전엔 `get_edge_function`으로 배포본을 먼저 읽고, 고친 소스는 `supabase/functions/`에도 남기세요. 마이그레이션도 `supabase/migrations/`에 파일로 남기세요.
-- 로그인은 Supabase Auth(이메일+비밀번호)예요. 가입 확인 메일 링크가 제대로 돌아오려면 대시보드 Authentication → URL Configuration의 Site URL·Redirect URLs에 운영 주소와 `http://localhost:5500/**`가 있어야 해요. 기본 메일 발송은 시간당 몇 통으로 제한돼요.
+- 로그인은 Supabase Auth예요. 간편 로그인 키(카카오·구글·네이버)는 사용자가 대시보드에 직접 넣어야 해요(`docs/social-login-setup.md`). 네이버는 기본 제공자가 아니라 사용자 지정 OAuth2 제공자이고, 네이버 회원 정보 응답이 `response`로 감싸져 있어 실제 동작은 아직 확인 못 했어요. 가입 확인 메일 링크가 제대로 돌아오려면 대시보드 Authentication → URL Configuration의 Site URL·Redirect URLs에 운영 주소와 `http://localhost:5500/**`가 있어야 해요. 기본 메일 발송은 시간당 몇 통으로 제한돼요.
 - 로컬 테스트 계정은 `.claude/test-account.txt`(Git 제외)에 있어요. 브라우저 확인은 이 계정으로 하고, 가입 테스트로 실제 메일을 보내지 마세요.
 - 보안 어드바이저의 "Leaked Password Protection Disabled" 경고는 대시보드 Auth 설정에서 켤 수 있어요(유료 플랜 기능일 수 있음).
 - 비회원 주문 조회·취소는 주문번호 + 휴대폰 번호로만 확인해요. 2단계(회원)에서 로그인 기반으로 강화할 예정이에요.

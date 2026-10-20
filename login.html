@@ -11,6 +11,28 @@
   <div id="header"></div>
 
   <main class="result auth">
+    <div id="socialBox">
+      <h1>로그인 · 회원가입</h1>
+      <p class="result__desc">자주 쓰는 계정으로 3초 만에 시작하세요. 처음이면 자동으로 가입돼요.</p>
+      <div class="social">
+        <button type="button" class="social__btn social__btn--kakao" data-provider="kakao">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 3C6.48 3 2 6.48 2 10.78c0 2.78 1.86 5.22 4.66 6.6l-.95 3.48c-.08.3.26.54.52.37l4.15-2.74c.53.07 1.07.1 1.62.1 5.52 0 10-3.48 10-7.81S17.52 3 12 3Z"/></svg>
+          <span>카카오로 시작하기</span>
+        </button>
+        <button type="button" class="social__btn social__btn--naver" data-provider="custom:naver">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M15.56 12.85 8.15 2H2v20h6.44V11.15L15.85 22H22V2h-6.44z"/></svg>
+          <span>네이버로 시작하기</span>
+        </button>
+        <button type="button" class="social__btn social__btn--google" data-provider="google">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#4285F4" d="M22.5 12.3c0-.8-.1-1.5-.2-2.3H12v4.3h5.9a5 5 0 0 1-2.2 3.3v2.7h3.5c2.1-1.9 3.3-4.7 3.3-8Z"/><path fill="#34A853" d="M12 23c3 0 5.5-1 7.2-2.7l-3.5-2.7c-1 .7-2.2 1-3.7 1-2.9 0-5.3-1.9-6.2-4.5H2.2v2.8A11 11 0 0 0 12 23Z"/><path fill="#FBBC05" d="M5.8 14.1a6.6 6.6 0 0 1 0-4.2V7.1H2.2a11 11 0 0 0 0 9.8l3.6-2.8Z"/><path fill="#EA4335" d="M12 5.4c1.6 0 3.1.6 4.2 1.7l3.1-3.1A11 11 0 0 0 2.2 7.1l3.6 2.8C6.7 7.3 9.1 5.4 12 5.4Z"/></svg>
+          <span>Google로 시작하기</span>
+        </button>
+      </div>
+      <p class="result__desc auth__msg" id="socialMsg"></p>
+      <button type="button" class="auth__more" id="emailToggle" aria-expanded="false">이메일로 로그인 · 가입</button>
+    </div>
+
+    <div id="emailBox" hidden>
     <div class="auth__tabs" role="tablist">
       <button type="button" class="auth__tab is-active" data-mode="login" role="tab">로그인</button>
       <button type="button" class="auth__tab" data-mode="signup" role="tab">회원가입</button>
@@ -32,6 +54,7 @@
       <button type="submit" class="btn btn--black btn--block" id="authBtn">로그인</button>
     </form>
     <p class="result__desc auth__msg" id="authMsg"></p>
+    </div>
 
     <div id="signedIn" hidden>
       <h1>로그인돼 있어요</h1>
@@ -51,26 +74,82 @@
   <script src="js/common.js"></script>
   <script>
     /*
-     * 이메일 로그인·회원가입 (Supabase Auth)
+     * 로그인·회원가입 (Supabase Auth)
+     * - 간편 로그인: 카카오(kakao)·구글(google)은 Supabase 기본 제공, 네이버는 사용자 지정 제공자(custom:naver).
+     *   처음 로그인하면 자동으로 회원이 만들어져요. 다녀오면 이 페이지로 돌아와서 next 페이지로 보내요.
+     * - 이메일 로그인·가입은 아래에 접어 뒀어요.
      * ?next=top.html 처럼 돌아갈 페이지를 주면 로그인 뒤 그 페이지로 돌아가요(같은 사이트의 .html만 허용).
      */
+    const PROVIDER_LABEL = { kakao: "카카오", "custom:naver": "네이버", google: "Google" };
+
+    // 대시보드에서 켜 둔 제공자인지 확인해요. 켜져 있으면 Supabase가 제공자 로그인 화면으로 보내는(리다이렉트) 응답을 줘요.
+    async function isProviderReady(provider) {
+      try {
+        const res = await fetch(`${SUPABASE_URL}/auth/v1/authorize?provider=${encodeURIComponent(provider)}`, { redirect: "manual" });
+        return res.type === "opaqueredirect" || (res.status >= 300 && res.status < 400);
+      } catch (e) {
+        return false;
+      }
+    }
+
     document.addEventListener("DOMContentLoaded", async () => {
-      const next = new URLSearchParams(location.search).get("next") || "";
+      const params = new URLSearchParams(location.search);
+      const next = params.get("next") || "";
       const nextUrl = /^[a-z]+\.html(\?[^\s]*)?$/.test(next) ? next : "top.html";
       const form = $("#authForm");
       const msg = $("#authMsg");
       let mode = "login";
 
       const showSignedIn = (user) => {
-        form.hidden = true;
-        $(".auth__tabs").hidden = true;
-        msg.textContent = "";
+        $("#socialBox").hidden = true;
+        $("#emailBox").hidden = true;
         $("#signedIn").hidden = false;
-        $("#signedInEmail").textContent = user.email;
+        const m = user.user_metadata || {};
+        $("#signedInEmail").textContent = user.email || m.name || m.full_name || m.nickname || "";
       };
 
+      // 간편 로그인에서 돌아왔는데 실패한 경우(취소 등)
+      const hash = new URLSearchParams(location.hash.slice(1));
+      const oauthError = params.get("error_description") || hash.get("error_description");
+      if (oauthError) $("#socialMsg").textContent = "로그인하지 못했어요. 다시 시도해 주세요. (" + oauthError + ")";
+
       const user = await authReady;
-      if (user) showSignedIn(user);
+      if (user) {
+        // 로그인하러 왔다가 막 돌아온 경우엔 원래 보던 페이지로 보내요.
+        if (next) return location.replace(nextUrl);
+        return showSignedIn(user);
+      }
+
+      /* ---------- 간편 로그인 ---------- */
+      const socialBtns = $$(".social__btn");
+      socialBtns.forEach((b) => (b.disabled = true));
+      await Promise.all(
+        socialBtns.map(async (b) => {
+          const ready = await isProviderReady(b.dataset.provider);
+          b.disabled = !ready;
+          if (!ready) b.querySelector("span").textContent += " (준비 중)";
+        })
+      );
+      socialBtns.forEach((b) =>
+        b.addEventListener("click", async () => {
+          socialBtns.forEach((x) => (x.disabled = true));
+          const back = new URL("login.html", location.href);
+          back.searchParams.set("next", nextUrl);
+          const { error } = await sb.auth.signInWithOAuth({ provider: b.dataset.provider, options: { redirectTo: back.href } });
+          if (error) {
+            console.error(error);
+            $("#socialMsg").textContent = `${PROVIDER_LABEL[b.dataset.provider]} 로그인을 시작하지 못했어요. (${error.message})`;
+            socialBtns.forEach((x) => (x.disabled = false));
+          }
+        })
+      );
+
+      $("#emailToggle").addEventListener("click", () => {
+        const open = $("#emailBox").hidden;
+        $("#emailBox").hidden = !open;
+        $("#emailToggle").setAttribute("aria-expanded", String(open));
+        if (open) $("#email").focus();
+      });
 
       $$(".auth__tab").forEach((t) =>
         t.addEventListener("click", () => {

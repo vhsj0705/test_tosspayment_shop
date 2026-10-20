@@ -649,3 +649,13 @@ input, select { font: inherit; }
 .auth__tab { padding: 14px 0; font-size: 16px; font-weight: 800; color: var(--gray-500); border-bottom: 2px solid transparent; margin-bottom: -1px; }
 .auth__tab.is-active { color: var(--black); border-bottom-color: var(--black); }
 .auth__msg { min-height: 20px; font-size: 13px; }
+.social { display: grid; gap: 10px; margin-top: 28px; }
+.social__btn { position: relative; display: flex; align-items: center; justify-content: center; gap: 8px; height: 52px; border-radius: 6px; font-size: 15px; font-weight: 700; }
+.social__btn svg { position: absolute; left: 18px; width: 20px; height: 20px; }
+.social__btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.social__btn--kakao { background: #fee500; color: rgba(0, 0, 0, 0.85); }
+.social__btn--naver { background: #03c75a; color: #fff; }
+.social__btn--naver svg { width: 16px; height: 16px; left: 20px; }
+.social__btn--google { background: #fff; color: #1f1f1f; border: 1px solid var(--gray-200); }
+.auth__more { margin-top: 20px; font-size: 13px; color: var(--gray-500); text-decoration: underline; }
+#emailBox { margin-top: 16px; }

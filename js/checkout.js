@@ -99,8 +99,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     const orderName = order.lines.length > 1 ? `${first} 외 ${order.lines.length - 1}건` : first;
     const orderId = "FITLOG-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
 
-    // 결제 요청 전에 orderId·amount를 저장해 두고, successUrl에서 금액 위변조 여부를 확인해요.
-    // 실제 서비스에서는 이 값을 반드시 '서버'에 저장하세요.
+    // 결제 요청 전에 orderId·amount를 화면용으로 저장해 두고(아래),
+    // 서버(Supabase orders 테이블)에도 'pending' 주문으로 저장해요. 승인 때 서버가 이 금액과 비교해요.
     writeJSON(localStorage, PENDING_KEY, {
       orderId,
       amount: total,
@@ -115,6 +115,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     const btn = $("#payBtn");
     btn.disabled = true;
     try {
+      await callFunction("create-order", {
+        orderId,
+        orderName,
+        amount: total,
+        coupon,
+        items: items.map(({ id, size, qty }) => ({ id, size, qty })),
+        orderer: { name: form.name, phone: form.phone, email: form.email, address: form.address, memo: form.memo },
+      });
+
       await widgets.requestPayment({
         orderId,
         orderName,

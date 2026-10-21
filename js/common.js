@@ -7,7 +7,6 @@ const CART_KEY = "fitlog-cart";
 const DIRECT_KEY = "fitlog-direct-order";
 
 const won = (n) => n.toLocaleString("ko-KR") + "원";
-const compact = (n) => (n >= 10000 ? (n / 10000).toFixed(1).replace(/\.0$/, "") + "만" : n.toLocaleString("ko-KR"));
 const $ = (sel, el = document) => el.querySelector(sel);
 const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
 
@@ -88,25 +87,26 @@ function renderHeader(active) {
     <header class="header">
       <div class="inner header__row">
         <a href="index.html" class="logo">${STORE_NAME}</a>
-        <form class="search" role="search" onsubmit="return false">
+        <form class="search" role="search" id="searchForm">
           <label class="blind" for="q">상품 검색</label>
-          <input id="q" type="search" placeholder="상품, 브랜드를 검색하세요" />
+          <input id="q" type="search" placeholder="상품, 브랜드 검색" autocomplete="off" />
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8a8a8a" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <ul class="search__results" id="searchResults" hidden></ul>
         </form>
         <div class="header__util">
           <a href="login.html" class="auth-link" id="authLink">로그인</a>
           <a href="order.html" class="hide-m">주문조회</a>
-          <a href="#" class="hide-m">마이페이지</a>
           <button type="button" class="cart-btn" data-open-cart>
             장바구니 <span class="cart-count" id="cartCount">0</span>
           </button>
         </div>
       </div>
       <nav class="gnb" aria-label="카테고리">
-        <ul class="inner gnb__list">${nav}<li class="gnb__item"><a href="#" onclick="return false" style="color:#666">세일</a></li><li class="gnb__item"><a href="#" onclick="return false" style="color:#666">랭킹</a></li></ul>
+        <ul class="inner gnb__list">${nav}</ul>
       </nav>
     </header>`;
   updateCartCount();
+  initSearch();
 
   // 로그인 상태에 따라 "로그인" ↔ "로그아웃"
   authReady.then((user) => {
@@ -122,6 +122,53 @@ function renderHeader(active) {
   });
 }
 
+/* 헤더 검색: 상품명·브랜드로 찾아 아래에 목록을 띄우고, 누르면 상품 창을 열어요. */
+function initSearch() {
+  const form = $("#searchForm");
+  const input = $("#q");
+  const box = $("#searchResults");
+  if (!form) return;
+  let hits = [];
+
+  async function show() {
+    const words = input.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (!words.length) return (box.hidden = true);
+    try {
+      await productsReady;
+    } catch (e) {}
+    hits = PRODUCTS.filter((p) => {
+      const text = `${p.brand} ${p.name} ${p.sub} ${CATEGORIES[p.cat]?.label || ""}`.toLowerCase();
+      return words.every((w) => text.includes(w));
+    }).slice(0, 8);
+    box.innerHTML = hits.length
+      ? hits
+          .map((p) => `<li><button type="button" data-search-id="${p.id}"><span><b>${p.brand}</b> ${p.name}</span><span class="search__price">${won(p.finalPrice)}</span></button></li>`)
+          .join("")
+      : `<li class="search__empty">검색 결과가 없어요</li>`;
+    box.hidden = false;
+  }
+
+  input.addEventListener("input", show);
+  input.addEventListener("focus", show);
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (hits.length === 1) openProduct(hits[0].id);
+    else show();
+  });
+  box.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-search-id]");
+    if (!b) return;
+    box.hidden = true;
+    openProduct(b.dataset.searchId);
+  });
+  document.addEventListener("click", (e) => {
+    if (!form.contains(e.target)) box.hidden = true;
+  });
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") box.hidden = true;
+  });
+}
+
 function renderFooter() {
   const el = $("#footer");
   if (!el) return;
@@ -129,7 +176,7 @@ function renderFooter() {
     <footer class="footer">
       <div class="inner">
         <p class="footer__logo">${STORE_NAME}</p>
-        <div class="footer__links"><a href="#">회사소개</a><a href="#">이용약관</a><a href="#">개인정보처리방침</a><a href="#">고객센터</a></div>
+        <div class="footer__links"><a href="order.html">주문조회</a><a href="index.html#faqTitle">자주 묻는 질문</a></div>
         <p>(주)핏로그 · 대표 홍길동 · 사업자등록번호 000-00-00000 · 통신판매업신고 제0000-서울-0000호</p>
         <p>고객센터 1588-0000 (평일 10:00~17:00) · help@fitlog.example</p>
         <p>본 사이트는 퍼블리싱 예시이며, 결제는 토스페이먼츠 테스트 환경에서 진행돼요.</p>
@@ -296,13 +343,12 @@ const BADGE_LABEL = { only: "단독" };
 const SHIPPING_NOTE = "3,000원 · 5만원 이상 무료배송";
 const isSoldOut = (p) => p.sizes.length > 0 && p.soldout.length === p.sizes.length;
 
-function productCard(p, rank) {
+function productCard(p) {
   const liked = Likes.has(p.id);
   const badges = p.badges.filter((b) => BADGE_LABEL[b]);
   return `
     <li class="product-card" data-id="${p.id}" tabindex="0">
       <div class="product-card__thumb">
-        ${rank <= 10 ? `<span class="rank">${rank}</span>` : ""}
         ${renderThumb(p)}
         <button type="button" class="like-btn ${liked ? "is-liked" : ""}" data-like="${p.id}" aria-label="좋아요">
           <svg viewBox="0 0 24 24"><path d="M12 20.5s-7.5-4.6-9.3-9.6C1.5 7.5 3.7 4 7.2 4c2 0 3.5 1.1 4.8 2.8C13.3 5.1 14.8 4 16.8 4c3.5 0 5.7 3.5 4.5 6.9-1.8 5-9.3 9.6-9.3 9.6Z"/></svg>
@@ -312,7 +358,6 @@ function productCard(p, rank) {
         <p class="product-card__brand">${p.brand}</p>
         <p class="product-card__name">${p.name}</p>
         <div class="price-row"><span class="discount">${p.sale}%</span><span class="price">${won(p.finalPrice)}</span></div>
-        <div class="product-card__meta"><span class="heart">♥ ${compact(p.likes)}</span><span>★ ${p.rating} (${compact(p.reviews)})</span></div>
         ${isSoldOut(p) || badges.length ? `<div class="badges">${isSoldOut(p) ? '<span class="badge badge--soldout">품절</span>' : ""}${badges.map((b) => `<span class="badge badge--${b}">${BADGE_LABEL[b]}</span>`).join("")}</div>` : ""}
       </div>
     </li>`;
@@ -344,7 +389,6 @@ function renderProductListLd(cat, list) {
           availability: isSoldOut(p) ? "https://schema.org/OutOfStock" : "https://schema.org/InStock",
           url: pageUrl,
         },
-        ...(p.reviews > 0 && { aggregateRating: { "@type": "AggregateRating", ratingValue: p.rating, reviewCount: p.reviews } }),
       },
     })),
   };
@@ -360,7 +404,7 @@ function renderProductListLd(cat, list) {
 
 async function initListPage(catKey) {
   const cat = CATEGORIES[catKey];
-  const state = { sub: "전체", sort: "popular" };
+  const state = { sub: "전체", sort: "recommend" };
   const grid = $("#productGrid");
 
   grid.innerHTML = `<li class="empty">상품을 불러오는 중이에요…</li>`;
@@ -384,26 +428,38 @@ async function initListPage(catKey) {
 
   function draw() {
     let list = all.filter((p) => state.sub === "전체" || p.sub === state.sub);
+    // 추천순은 DB에 정한 진열 순서(sort_order) 그대로예요.
     const sorters = {
-      popular: (a, b) => b.likes - a.likes,
       low: (a, b) => a.finalPrice - b.finalPrice,
       high: (a, b) => b.finalPrice - a.finalPrice,
       sale: (a, b) => b.sale - a.sale,
-      review: (a, b) => b.reviews - a.reviews,
     };
-    list = [...list].sort(sorters[state.sort]);
+    if (sorters[state.sort]) list = [...list].sort(sorters[state.sort]);
     $("#productCount").textContent = list.length;
-    grid.innerHTML = list.length
-      ? list.map((p, i) => productCard(p, state.sort === "popular" ? i + 1 : 99)).join("")
-      : `<li class="empty">조건에 맞는 상품이 없어요.</li>`;
+    grid.innerHTML = list.length ? list.map(productCard).join("") : `<li class="empty">조건에 맞는 상품이 없어요.</li>`;
+  }
+
+  function selectSub(sub) {
+    state.sub = sub;
+    $$(".sub-tab").forEach((t) => t.classList.toggle("is-active", t.dataset.sub === sub));
+    draw();
   }
 
   $("#subTabs").addEventListener("click", (e) => {
     const b = e.target.closest("[data-sub]");
-    if (!b) return;
-    state.sub = b.dataset.sub;
-    $$(".sub-tab").forEach((t) => t.classList.toggle("is-active", t === b));
-    draw();
+    if (b) selectSub(b.dataset.sub);
+  });
+
+  // 기획전 배너: 눌리면 그 세부 카테고리로 걸러 보여 줘요. "최대 N%"는 실제 할인율에서 계산해요.
+  $$(".promo__card[data-sub]").forEach((card) => {
+    const inSub = all.filter((p) => p.sub === card.dataset.sub);
+    const maxSale = Math.max(0, ...inSub.map((p) => p.sale));
+    const saleEl = $("[data-max-sale]", card);
+    if (saleEl) saleEl.textContent = maxSale > 0 ? `최대 ${maxSale}% 할인` : `${inSub.length}개 상품`;
+    card.addEventListener("click", () => {
+      selectSub(card.dataset.sub);
+      $("#productCount").scrollIntoView({ behavior: "smooth", block: "center" });
+    });
   });
   $("#sortSelect").addEventListener("change", (e) => {
     state.sort = e.target.value;
@@ -458,8 +514,6 @@ function openProduct(id) {
       </div>
       <ul class="info-list">
         <li><span class="k">배송</span><span>${SHIPPING_NOTE} · 내일 출발</span></li>
-        <li><span class="k">적립</span><span>최대 ${won(Math.round(p.finalPrice * 0.05))} (5%)</span></li>
-        <li><span class="k">후기</span><span>★ ${p.rating} · ${p.reviews.toLocaleString("ko-KR")}개</span></li>
       </ul>
       <p class="option-label">사이즈</p>
       <div class="size-list">

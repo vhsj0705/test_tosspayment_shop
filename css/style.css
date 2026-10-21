@@ -75,6 +75,7 @@ input, select { font: inherit; }
   flex-shrink: 0;
 }
 .search {
+  position: relative;
   flex: 1;
   max-width: 420px;
   display: flex;
@@ -94,6 +95,33 @@ input, select { font: inherit; }
   font-size: 13px;
 }
 .search input::placeholder { color: #8a8a8a; }
+.search__results {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 60;
+  max-height: 360px;
+  overflow-y: auto;
+  background: var(--white);
+  color: var(--ink);
+  border: 1px solid var(--gray-200);
+  border-radius: 4px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+.search__results button {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  width: 100%;
+  padding: 11px 14px;
+  text-align: left;
+  font-size: 13px;
+}
+.search__results button:hover,
+.search__results button:focus-visible { background: var(--gray-100); }
+.search__results .search__price { margin-left: auto; font-weight: 700; white-space: nowrap; }
+.search__empty { padding: 14px; font-size: 13px; color: var(--gray-500); }
 .header__util {
   margin-left: auto;
   display: flex;
@@ -198,7 +226,9 @@ input, select { font: inherit; }
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
+  text-align: left;
 }
+.promo__card:hover strong { text-decoration: underline; }
 .promo__card em {
   font-style: normal;
   font-size: 11px;
@@ -260,22 +290,6 @@ input, select { font: inherit; }
   transition: transform 0.35s ease;
 }
 .product-card:hover .product-card__thumb svg { transform: scale(1.04); }
-.rank {
-  position: absolute;
-  left: 0;
-  top: 0;
-  min-width: 26px;
-  height: 26px;
-  padding: 0 6px;
-  background: var(--black);
-  color: var(--white);
-  font-size: 13px;
-  font-weight: 800;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1;
-}
 .like-btn {
   position: absolute;
   right: 8px;
@@ -305,14 +319,6 @@ input, select { font: inherit; }
 .price-row { display: flex; align-items: baseline; gap: 6px; margin-top: 6px; }
 .price-row .discount { color: var(--red); font-weight: 800; font-size: 14px; }
 .price-row .price { font-weight: 800; font-size: 14px; }
-.product-card__meta {
-  display: flex;
-  gap: 8px;
-  margin-top: 6px;
-  font-size: 11px;
-  color: var(--gray-500);
-}
-.product-card__meta .heart { color: var(--red); }
 .badges { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
 .badge {
   font-size: 10px;

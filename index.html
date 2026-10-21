@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>상의 - 티셔츠·셔츠·후드·니트 | FITLOG 패션 쇼핑몰</title>
-  <meta name="description" content="FITLOG 상의 카테고리. 반소매·긴소매 티셔츠, 셔츠/블라우스, 후드 티셔츠, 니트/스웨터를 인기순·가격순·할인율순으로 비교하세요. 5만원 이상 무료배송, 신규 회원 첫 구매 20% 쿠폰." />
+  <meta name="description" content="FITLOG 상의 카테고리. 반소매·긴소매 티셔츠, 셔츠/블라우스, 후드 티셔츠, 니트/스웨터를 추천순·가격순·할인율순으로 비교하세요. 5만원 이상 무료배송, 신규 회원 첫 구매 20% 쿠폰." />
   <link rel="canonical" href="https://testtosspaymentshop-xv13.vercel.app/" />
   <meta name="robots" content="index, follow, max-image-preview:large" />
   <meta name="theme-color" content="#000000" />
@@ -67,7 +67,7 @@
           { "@type": "Question", "name": "어떤 결제 수단을 쓸 수 있나요?", "acceptedAnswer": { "@type": "Answer", "text": "주문서에서 토스페이먼츠 결제위젯으로 카드·간편결제 등을 고를 수 있어요. 이 사이트는 퍼블리싱 예시라 결제는 토스페이먼츠 테스트 환경에서 진행되고 실제로 청구되지 않아요." } },
           { "@type": "Question", "name": "회원가입 없이 주문하고 조회할 수 있나요?", "acceptedAnswer": { "@type": "Answer", "text": "네. 비회원으로 주문할 수 있고, 상단의 주문조회에서 주문번호와 휴대폰 번호를 넣으면 주문 내역을 보고 결제를 취소할 수 있어요." } },
           { "@type": "Question", "name": "품절된 사이즈는 어떻게 알 수 있나요?", "acceptedAnswer": { "@type": "Answer", "text": "사이즈별 재고를 실시간으로 확인해서 재고가 없는 사이즈는 품절로 표시해요. 결제할 때도 재고를 다시 확인하고, 모자라면 결제를 막아요." } },
-          { "@type": "Question", "name": "어떤 계정으로 로그인할 수 있나요?", "acceptedAnswer": { "@type": "Answer", "text": "카카오·네이버·구글 간편 로그인과 이메일 로그인을 지원해요. 좋아요(찜)는 로그인한 회원만 쓸 수 있어요." } }
+          { "@type": "Question", "name": "어떤 계정으로 로그인할 수 있나요?", "acceptedAnswer": { "@type": "Answer", "text": "지금은 이메일로 가입하고 로그인할 수 있어요. 카카오·네이버·구글 간편 로그인은 준비 중이에요. 좋아요(찜)는 로그인한 회원만 쓸 수 있어요." } }
         ]
       }
     ]
@@ -85,9 +85,9 @@
       <div class="sub-tabs" id="subTabs" role="tablist" aria-label="세부 카테고리"></div>
 
       <div class="promo">
-        <a href="#" class="promo__card promo__card--a"><em>WEEKLY BEST</em><strong>이번 주 가장 많이 팔린<br>반소매 티셔츠</strong></a>
-        <a href="#" class="promo__card promo__card--b"><em>단독 발매</em><strong>LAYERED 25FW<br>단독 최대 35%</strong></a>
-        <a href="#" class="promo__card promo__card--c"><em>가을 준비</em><strong>니트 &amp; 스웨터<br>얼리 세일</strong></a>
+        <button type="button" class="promo__card promo__card--a" data-sub="반소매 티셔츠"><em>DAILY TEE</em><strong>매일 입는<br>반소매 티셔츠 모음</strong></button>
+        <button type="button" class="promo__card promo__card--b" data-sub="후드 티셔츠"><em>후드 티셔츠</em><strong>후드 &amp; 집업<br><span data-max-sale>할인 상품 보기</span></strong></button>
+        <button type="button" class="promo__card promo__card--c" data-sub="니트/스웨터"><em>가을 준비</em><strong>니트 &amp; 스웨터<br><span data-max-sale>할인 상품 보기</span></strong></button>
       </div>
     </section>
 
@@ -97,11 +97,10 @@
         <div class="toolbar__right">
           <label class="blind" for="sortSelect">정렬</label>
           <select class="sort-select" id="sortSelect">
-            <option value="popular">인기순</option>
+            <option value="recommend">추천순</option>
             <option value="low">낮은 가격순</option>
             <option value="high">높은 가격순</option>
             <option value="sale">할인율순</option>
-            <option value="review">후기 많은순</option>
           </select>
         </div>
       </div>
@@ -115,7 +114,7 @@
       <details class="faq__item"><summary>어떤 결제 수단을 쓸 수 있나요?</summary><p>주문서에서 토스페이먼츠 결제위젯으로 카드·간편결제 등을 고를 수 있어요. 이 사이트는 퍼블리싱 예시라 결제는 토스페이먼츠 테스트 환경에서 진행되고 실제로 청구되지 않아요.</p></details>
       <details class="faq__item"><summary>회원가입 없이 주문하고 조회할 수 있나요?</summary><p>네. 비회원으로 주문할 수 있고, 상단의 <a href="order.html">주문조회</a>에서 주문번호와 휴대폰 번호를 넣으면 주문 내역을 보고 결제를 취소할 수 있어요.</p></details>
       <details class="faq__item"><summary>품절된 사이즈는 어떻게 알 수 있나요?</summary><p>사이즈별 재고를 실시간으로 확인해서 재고가 없는 사이즈는 품절로 표시해요. 결제할 때도 재고를 다시 확인하고, 모자라면 결제를 막아요.</p></details>
-      <details class="faq__item"><summary>어떤 계정으로 로그인할 수 있나요?</summary><p>카카오·네이버·구글 간편 로그인과 이메일 로그인을 지원해요. 좋아요(찜)는 로그인한 회원만 쓸 수 있어요.</p></details>
+      <details class="faq__item"><summary>어떤 계정으로 로그인할 수 있나요?</summary><p>지금은 이메일로 가입하고 로그인할 수 있어요. 카카오·네이버·구글 간편 로그인은 준비 중이에요. 좋아요(찜)는 로그인한 회원만 쓸 수 있어요.</p></details>
     </section>
   </main>
 

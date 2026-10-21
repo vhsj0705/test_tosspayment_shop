@@ -80,7 +80,7 @@ supabase-js CDN(`@supabase/supabase-js@2.45.4` UMD, 전역 `supabase`) → `js/s
 | `wishlists` | 회원별 좋아요(`user_id`, `product_id`) | 로그인한 본인만 읽기·추가·삭제 |
 | `guest_order_attempts` | 주문조회 실패 기록(`order_id`, `failed_at`) | 서버만 |
 
-- 보안 어드바이저의 `orders`·`order_items` "RLS Enabled No Policy"는 의도한 상태예요.
+- 보안 어드바이저의 `orders`·`order_items`·`guest_order_attempts` "RLS Enabled No Policy"는 의도한 상태예요(서버만 접근).
 - DB 함수 `reserve_order_stock(order_id)`/`release_order_stock(order_id)`: `stock_reserved` 플래그로 한 번만 차감·복구해요. `stock >= qty` 조건부 UPDATE라 마지막 1개는 한 명만 가져가요. service role만 실행할 수 있어요.
 - Edge Function `create-order`, `confirm-payment`, `guest-order`는 모두 `verify_jwt: true`이고 브라우저는 공개 anon 키로 호출해요.
 - 토스 시크릿 키는 함수 환경변수 `TOSS_SECRET_KEY`에서 읽고, 없으면 토스 문서용 테스트 시크릿 키를 써요. 운영 전에 Supabase 대시보드(Edge Functions → Secrets)에서 내 상점 시크릿 키로 설정해야 해요.

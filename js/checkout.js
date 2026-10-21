@@ -60,10 +60,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         <div class="order-item">
           <div class="order-item__thumb">${renderThumb(l.product)}</div>
           <div>
-            <p class="cart-item__brand">${l.product.brand}</p>
-            <p class="cart-item__name">${l.product.name}</p>
+            <p class="cart-item__brand">${esc(l.product.brand)}</p>
+            <p class="cart-item__name">${esc(l.product.name)}</p>
             <p class="cart-item__opt">사이즈 ${l.size} / 수량 ${l.qty}개</p>
-            ${bad ? `<p class="order-item__warn">${bad.message}</p>` : ""}
+            ${bad ? `<p class="order-item__warn">${esc(bad.message)}</p>` : ""}
           </div>
           <p class="order-item__price">${bad ? "-" : won(sl ? sl.lineTotal : l.lineTotal)}</p>
         </div>`;
@@ -105,7 +105,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     note.innerHTML =
       info.status === "LOGIN_REQUIRED"
         ? `${info.message} <a href="login.html?next=${encodeURIComponent("checkout.html" + location.search)}">로그인하기</a>`
-        : info.message;
+        : esc(info.message);
   }
 
   // 품절은 빼고, 재고가 조금 남은 상품은 남은 수량으로 줄여요.
@@ -129,7 +129,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   } catch (err) {
     console.error(err);
     $("#sumTotal").textContent = "-";
-    $("#payment-method").innerHTML = `<p class="widget-loading">결제 금액을 계산하지 못했어요. 새로고침해 주세요. (${err.message})</p>`;
+    $("#payment-method").innerHTML = `<p class="widget-loading">결제 금액을 계산하지 못했어요. 새로고침해 주세요. (${esc(err.message)})</p>`;
     return;
   }
 
@@ -158,7 +158,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     payBtn.disabled = !canPay();
   } catch (err) {
     console.error(err);
-    $("#payment-method").innerHTML = `<p class="widget-loading">결제 수단을 불러오지 못했어요. (${err.code || ""} ${err.message || err})</p>`;
+    $("#payment-method").innerHTML = `<p class="widget-loading">결제 수단을 불러오지 못했어요. (${esc(err.code || "")} ${esc(err.message || err)})</p>`;
     return;
   }
 
@@ -184,7 +184,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     const form = validateForm();
     if (!form || !canPay()) return;
 
-    const orderId = "FITLOG-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
+    // 추측할 수 없는 무작위 주문번호(주문조회는 주문번호 + 휴대폰 번호로 하니까요).
+    const orderId = "FITLOG-" + crypto.randomUUID();
     payBtn.disabled = true;
 
     // 서버가 금액을 다시 계산하고 재고를 확인한 뒤 'pending' 주문으로 저장해요.
@@ -243,17 +244,19 @@ function validateForm() {
   const phone = $("#phone");
   const email = $("#email");
   const address = $("#address");
+  const agree = $("#privacyAgree");
   const digits = phone.value.replace(/\D/g, "");
   const checks = [
     [name, name.value.trim().length > 0, "이름을 입력해 주세요"],
     [phone, /^01\d{8,9}$/.test(digits), "휴대폰 번호를 정확히 입력해 주세요"],
     [email, !email.value || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value), "이메일 형식을 확인해 주세요"],
     [address, address.value.trim().length > 0, "배송지를 입력해 주세요"],
+    [agree, agree.checked, "개인정보 수집·이용에 동의해 주세요"],
   ];
-  $$(".input").forEach((el) => el.classList.remove("is-error"));
+  $$(".input, .consent-box").forEach((el) => el.classList.remove("is-error"));
   const bad = checks.find(([, ok]) => !ok);
   if (bad) {
-    bad[0].classList.add("is-error");
+    (bad[0] === agree ? $("#privacyBox") : bad[0]).classList.add("is-error");
     bad[0].focus();
     toast(bad[2]);
     return null;

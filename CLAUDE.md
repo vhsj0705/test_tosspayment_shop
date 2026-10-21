@@ -47,7 +47,9 @@ supabase-js CDN(`@supabase/supabase-js@2.45.4` UMD, 전역 `supabase`) → `js/s
 - **목록 페이지**(`top.html`, `shoes.html`, `pants.html`): 마크업이 같고 `data-page`, 제목, 기획전 배너만 달라요. 배너(`.promo__card`)는 `data-sub`의 세부 카테고리로 목록을 걸러 주고, 안의 `data-max-sale`에는 그 카테고리의 실제 최대 할인율이 채워져요. 배너에 서버 금액 규칙(`quote()`)에 없는 혜택(묶음 할인 등)을 적지 마세요. 카테고리를 추가하려면 `CATEGORIES`, DB `products.category` CHECK 제약, 서버 함수를 같이 고치고 같은 마크업의 HTML을 하나 더 만들어요.
 - **`index.html`은 `top.html`을 복사한 파일이에요.** Vercel에서 `/`가 빈 화면이 되지 않게 리다이렉트 대신 실제 페이지로 둔 거예요. `top.html`을 고치면 `index.html`도 같이 고치세요.
 - **`login.html`**: 간편 로그인(카카오 `kakao`, 네이버 `custom:naver`, 구글 `google`)이 메인이고, 이메일 로그인·가입은 "이메일로 로그인 · 가입" 아래 접혀 있어요. 버튼마다 `isProviderReady()`가 `/auth/v1/authorize`를 `redirect: "manual"`로 찔러 보고, 대시보드에서 안 켠 제공자는 "(준비 중)"으로 비활성화해요. 간편 로그인은 `signInWithOAuth({ redirectTo: login.html?next=... })`로 돌아오고, 로그인 상태로 `next`가 있으면 바로 그 페이지로 보내요. `?next=`는 같은 사이트 `.html`만 받아요. 제공자 설정 방법은 `docs/social-login-setup.md`. 2026-10-21 기준 운영 사이트의 카카오·네이버·구글 버튼은 모두 "(준비 중)"이에요. 홍보 문구·영상·FAQ에 간편 로그인을 쓸 수 있다고 적기 전에 `login.html`에서 켜졌는지 확인하세요.
-- **`order.html`**: 비회원 주문 조회·취소(주문번호 + 휴대폰 번호). 헤더의 "주문조회"와 결제 완료 화면에서 들어와요.
+- **`order.html`**: 비회원 주문 조회·취소(주문번호 + 휴대폰 번호). 헤더의 "주문조회"와 결제 완료 화면에서 들어와요. 받는 분 이름·배송지는 서버가 일부 가려서(`홍*동`, `서울 강남구 ***`) 보내요.
+- **`privacy.html`**: 개인정보처리방침(하단 링크). 수집 항목·보유 기간·위탁사를 바꾸면 이 페이지와 주문서 동의 문구(`checkout.html` `#privacyBox`)를 같이 고치세요. 회사 정보·보호책임자는 예시 값이에요. 주문서는 `#privacyAgree`에 체크해야 결제로 넘어가요.
+- 화면에 DB·서버 값을 `innerHTML`로 끼워 넣을 땐 `esc()`(`js/data.js`, 모든 페이지 공용)로 감싸세요. supabase-js CDN `<script>`에는 `integrity`(SRI)가 있어서, 버전을 바꾸면 새 해시로 바꿔야 해요(`curl … | openssl dgst -sha384 -binary | openssl base64 -A`). 보안 헤더(`X-Frame-Options`, `frame-ancestors` 등)는 `vercel.json`에 있어요.
 - **검색 최적화(SEO·AEO·GEO)**: 목록 페이지 `<head>`에 설명·canonical·OG 태그와 JSON-LD(`Organization`·`WebSite`·`CollectionPage`+`BreadcrumbList`·`FAQPage`)가 있고, 본문 아래에 같은 내용의 "자주 묻는 질문"(`.faq`)이 있어요. 배송비·쿠폰 같은 규칙을 바꾸면 FAQ 본문, JSON-LD, `llms.txt`를 같이 고치세요. 상품 목록 JSON-LD(`ItemList`/`Product`)는 `renderProductListLd()`가 DB에서 불러온 뒤 붙여요. `index.html`과 `top.html`은 canonical이 둘 다 `/`예요. 주문서·결제 결과·로그인·주문조회는 `noindex`예요(`robots.txt`에서 막지 않아요). 주소는 `js/supabase.js`의 `SITE_URL`과 같은 운영 주소를 쓰고, 도메인을 바꾸면 HTML·`robots.txt`·`sitemap.xml`·`llms.txt`를 모두 바꾸세요. 페이지를 추가하면 `sitemap.xml`에도 넣으세요. `index.html`·`top.html`의 `google-site-verification`·`naver-site-verification` 메타는 Google Search Console(URL 접두어 속성 `https://testtosspaymentshop-xv13.vercel.app/`)과 네이버 서치어드바이저 소유 확인용이라 지우면 확인이 풀려요. Claude in Chrome에서는 naver.com 전체(서치어드바이저·네이버 검색)가 안전 제한으로 막혀 있어서, 네이버 화면 작업과 노출 확인은 사용자가 직접 해요. Search Console 사이트맵은 2026-10-21에 "성공"(페이지 3개)으로 확인했어요.
 - `$(sel)`은 요소 하나, `$$(sel)`은 배열이에요. 스크립트로 파일을 고칠 때 JS `String.replace`의 바꿀 문자열에 `$$`를 넣으면 `$` 하나로 바뀌니 조심하세요.
 
@@ -76,6 +78,7 @@ supabase-js CDN(`@supabase/supabase-js@2.45.4` UMD, 전역 `supabase`) → `js/s
 | `orders` | 주문 요약·금액 내역·상태(`pending`/`paid`/`failed`/`canceled`)·`stock_reserved`·`user_id`(회원 주문만) | 서버만 |
 | `order_items` | 주문 당시 상품명·가격·사이즈·수량 | 서버만 |
 | `wishlists` | 회원별 좋아요(`user_id`, `product_id`) | 로그인한 본인만 읽기·추가·삭제 |
+| `guest_order_attempts` | 주문조회 실패 기록(`order_id`, `failed_at`) | 서버만 |
 
 - 보안 어드바이저의 `orders`·`order_items` "RLS Enabled No Policy"는 의도한 상태예요.
 - DB 함수 `reserve_order_stock(order_id)`/`release_order_stock(order_id)`: `stock_reserved` 플래그로 한 번만 차감·복구해요. `stock >= qty` 조건부 UPDATE라 마지막 1개는 한 명만 가져가요. service role만 실행할 수 있어요.
@@ -85,7 +88,11 @@ supabase-js CDN(`@supabase/supabase-js@2.45.4` UMD, 전역 `supabase`) → `js/s
 - 로그인은 Supabase Auth예요. 간편 로그인 키(카카오·구글·네이버)는 사용자가 대시보드에 직접 넣어야 해요(`docs/social-login-setup.md`). 네이버는 기본 제공자가 아니라 사용자 지정 OAuth2 제공자이고, 네이버 회원 정보 응답이 `response`로 감싸져 있어 실제 동작은 아직 확인 못 했어요. 가입 확인 메일 링크는 `SITE_URL`(`js/supabase.js`, 운영 주소)의 `login.html`로 고정돼 있어요(로컬에서 가입해도). 링크를 누르고 돌아오면 `AUTH_RETURN`(supabase-js가 지우기 전에 읽어 둔 `#` 뒤 값)의 `type=signup`을 보고 "이메일 인증이 완료됐어요"를 보여줘요. 이 주소가 대시보드 Authentication → URL Configuration의 Redirect URLs에 없으면 Supabase가 Site URL(기본값 `http://localhost:3000`)로 보내 버려요. 2026-10-20에 Site URL을 운영 주소로, Redirect URLs에 `https://testtosspaymentshop-xv13.vercel.app/**`와 `http://localhost:5500/**`를 설정해 뒀어요. 새 도메인을 쓰면 여기에 추가하세요. 기본 메일 발송은 시간당 몇 통으로 제한돼요.
 - 로컬 테스트 계정은 `.claude/test-account.txt`(Git 제외)에 있어요. 브라우저 확인은 이 계정으로 하고, 가입 테스트로 실제 메일을 보내지 마세요.
 - 보안 어드바이저의 "Leaked Password Protection Disabled" 경고는 대시보드 Auth 설정에서 켤 수 있어요(유료 플랜 기능일 수 있음).
-- 비회원 주문 조회·취소는 주문번호 + 휴대폰 번호로만 확인해요. 2단계(회원)에서 로그인 기반으로 강화할 예정이에요.
+- 비회원 주문 조회·취소는 주문번호 + 휴대폰 번호로 확인해요. 틀리면 `guest_order_attempts`에 기록하고 주문번호별로 30분 안에 5번 틀리면 `TOO_MANY_ATTEMPTS`(429)로 잠가요. `user_id`가 있는 회원 주문은 그 회원으로 로그인해야 취소돼요(`LOGIN_REQUIRED` 403). 주문번호는 `FITLOG-` + `crypto.randomUUID()`예요.
+- 첫 구매 쿠폰 중복은 DB 고유 인덱스 `orders_coupon_once_per_user`(`use_coupon and stock_reserved`인 회원 주문은 하나만)로도 막아요. `reserve_order_stock()`에서 걸리면 `confirm-payment`가 `COUPON_ALREADY_USED`로 처리해요.
+- `confirm-payment`는 금액이 달라도 주문 상태를 바꾸지 않고 거절만 해요. 토스 승인 응답의 `orderId`·`totalAmount`·`status(DONE)`가 주문과 다르면 결제를 취소하고 `failed`로 남겨요. `toss_response`에는 필요한 항목만(`pickToss()`) 저장해요.
+- pg_cron 작업: `purge-unpaid-orders`(매일 04:00 KST, 30일 지난 `pending`·`failed` 주문 삭제), `purge-guest-order-attempts`(1일 지난 기록 삭제). 개인정보처리방침의 보유 기간과 같아요.
+- 브라우저 역할(anon/authenticated)의 쓰기 권한은 회수했어요. 읽기는 RLS 정책대로예요.
 
 ## 토스페이먼츠 문서 참고
 

@@ -19,7 +19,7 @@
 
   <div id="footer"></div>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js" integrity="sha384-GFr3yTh5lJznCbZfpTtXnwboFsxqtTQoeTZCRHhE0579KrRmlCzen5AA8ohaB5ug" crossorigin="anonymous"></script>
   <script src="js/supabase.js"></script>
   <script src="js/data.js"></script>
   <script src="js/common.js"></script>
@@ -30,7 +30,6 @@
      * 서버가 저장해 둔 주문 금액과 비교한 뒤, 시크릿 키로 토스 결제 승인 API를 호출하고 주문을 'paid'로 저장해요.
      */
     const row = (k, v) => `<div><dt>${k}</dt><dd>${v}</dd></div>`;
-    const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
     document.addEventListener("DOMContentLoaded", async () => {
       const q = new URLSearchParams(location.search);

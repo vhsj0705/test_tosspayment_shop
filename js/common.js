@@ -142,7 +142,7 @@ function initSearch() {
     }).slice(0, 8);
     box.innerHTML = hits.length
       ? hits
-          .map((p) => `<li><button type="button" data-search-id="${p.id}"><span><b>${p.brand}</b> ${p.name}</span><span class="search__price">${won(p.finalPrice)}</span></button></li>`)
+          .map((p) => `<li><button type="button" data-search-id="${p.id}"><span><b>${esc(p.brand)}</b> ${esc(p.name)}</span><span class="search__price">${won(p.finalPrice)}</span></button></li>`)
           .join("")
       : `<li class="search__empty">검색 결과가 없어요</li>`;
     box.hidden = false;
@@ -176,7 +176,7 @@ function renderFooter() {
     <footer class="footer">
       <div class="inner">
         <p class="footer__logo">${STORE_NAME}</p>
-        <div class="footer__links"><a href="order.html">주문조회</a><a href="index.html#faqTitle">자주 묻는 질문</a></div>
+        <div class="footer__links"><a href="privacy.html"><b>개인정보처리방침</b></a><a href="order.html">주문조회</a><a href="index.html#faqTitle">자주 묻는 질문</a></div>
         <p>(주)핏로그 · 대표 홍길동 · 사업자등록번호 000-00-00000 · 통신판매업신고 제0000-서울-0000호</p>
         <p>고객센터 1588-0000 (평일 10:00~17:00) · help@fitlog.example</p>
         <p>본 사이트는 퍼블리싱 예시이며, 결제는 토스페이먼츠 테스트 환경에서 진행돼요.</p>
@@ -262,8 +262,8 @@ function renderCart() {
       <div class="cart-item">
         <div class="cart-item__thumb">${renderThumb(l.product)}</div>
         <div>
-          <p class="cart-item__brand">${l.product.brand}</p>
-          <p class="cart-item__name">${l.product.name}</p>
+          <p class="cart-item__brand">${esc(l.product.brand)}</p>
+          <p class="cart-item__name">${esc(l.product.name)}</p>
           <p class="cart-item__opt">사이즈 ${l.size}</p>
           <div class="qty">
             <button type="button" data-qty="${i}" data-delta="-1" aria-label="수량 빼기">−</button>
@@ -355,8 +355,8 @@ function productCard(p) {
         </button>
       </div>
       <div class="product-card__info">
-        <p class="product-card__brand">${p.brand}</p>
-        <p class="product-card__name">${p.name}</p>
+        <p class="product-card__brand">${esc(p.brand)}</p>
+        <p class="product-card__name">${esc(p.name)}</p>
         <div class="price-row"><span class="discount">${p.sale}%</span><span class="price">${won(p.finalPrice)}</span></div>
         ${isSoldOut(p) || badges.length ? `<div class="badges">${isSoldOut(p) ? '<span class="badge badge--soldout">품절</span>' : ""}${badges.map((b) => `<span class="badge badge--${b}">${BADGE_LABEL[b]}</span>`).join("")}</div>` : ""}
       </div>
@@ -506,8 +506,8 @@ function openProduct(id) {
     <button type="button" class="modal__close" aria-label="닫기">×</button>
     <div class="modal__thumb">${renderThumb(p)}</div>
     <div class="modal__body">
-      <p class="modal__brand">${p.brand}</p>
-      <h2 class="modal__name">${p.name}</h2>
+      <p class="modal__brand">${esc(p.brand)}</p>
+      <h2 class="modal__name">${esc(p.name)}</h2>
       <div class="modal__price">
         <p class="origin">${won(p.price)}</p>
         <div class="price-row"><span class="discount">${p.sale}%</span><span class="price">${won(p.finalPrice)}</span></div>

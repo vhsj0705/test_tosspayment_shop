@@ -16,6 +16,24 @@ const json = (body: unknown, status = 200) =>
 // 운영에서는 `supabase secrets set TOSS_SECRET_KEY=...`로 내 상점 시크릿 키를 넣으세요.
 // 설정이 없으면 토스 문서용 테스트 시크릿 키로 동작해요(실제 결제 안 됨).
 const TOSS_SECRET_KEY = Deno.env.get("TOSS_SECRET_KEY") ?? "test_gsk_docs_OaPz8L5KdmQXkzRz3y47BMw6";
+const tossAuth = "Basic " + btoa(`${TOSS_SECRET_KEY}:`);
+
+// 토스 응답 중 필요한 항목만 저장해요(휴대폰 번호·secret 등은 저장하지 않아요).
+const pickToss = (t: any) => ({
+  paymentKey: t.paymentKey,
+  orderId: t.orderId,
+  orderName: t.orderName,
+  status: t.status,
+  method: t.method,
+  totalAmount: t.totalAmount,
+  balanceAmount: t.balanceAmount,
+  requestedAt: t.requestedAt,
+  approvedAt: t.approvedAt,
+  receiptUrl: t.receipt?.url,
+  card: t.card ? { ...t.card, number: undefined } : undefined,
+  easyPay: t.easyPay,
+  cancels: t.cancels,
+});
 
 async function loadItems(supabase: SupabaseClient, orderUuid: string) {
   const { data } = await supabase
@@ -86,9 +104,9 @@ Deno.serve(async (req) => {
   }
 
   // 서버가 계산해 저장해 둔 금액과 다르면 승인하지 않아요(금액 위변조 방지).
-  // (재고를 이미 잡아 둔 주문은 다른 요청이 승인 중일 수 있어서 상태는 건드리지 않아요.)
+  // 주문 상태는 바꾸지 않아요(주문번호만 아는 사람이 남의 결제 중인 주문을 실패로 만들 수 없게).
   if (order.amount !== amount) {
-    if (!order.stock_reserved) await markFailed("AMOUNT_MISMATCH", `주문 ${order.amount}원 / 결제 요청 ${amount}원`);
+    console.warn("confirm-payment amount mismatch", orderId, order.amount, amount);
     return json({ code: "AMOUNT_MISMATCH", message: "주문 금액과 결제 금액이 달라요." }, 400);
   }
 
@@ -123,6 +141,12 @@ Deno.serve(async (req) => {
       return json({ code: "SOLD_OUT", message }, 409);
     }
     if (msg.includes("ORDER_NOT_PENDING")) return json({ code: "ORDER_NOT_PENDING", message: "이미 처리가 끝난 주문이에요." }, 409);
+    // 같은 회원의 다른 쿠폰 주문이 먼저 결제 중·결제 완료면 DB 고유 조건(orders_coupon_once_per_user)에 걸려요.
+    if (stockError.code === "23505" && msg.includes("orders_coupon_once_per_user")) {
+      const message = "첫 구매 쿠폰은 이미 다른 주문에서 썼어요. 쿠폰 없이 다시 주문해 주세요.";
+      await markFailed("COUPON_ALREADY_USED", message);
+      return json({ code: "COUPON_ALREADY_USED", message }, 409);
+    }
     console.error("confirm-payment reserve stock failed", stockError);
     return json({ code: "DB_ERROR", message: "재고를 확인하지 못했어요." }, 500);
   }
@@ -132,7 +156,7 @@ Deno.serve(async (req) => {
     res = await fetch("https://api.tosspayments.com/v1/payments/confirm", {
       method: "POST",
       headers: {
-        Authorization: "Basic " + btoa(`${TOSS_SECRET_KEY}:`),
+        Authorization: tossAuth,
         "Content-Type": "application/json",
         "Idempotency-Key": orderId,
       },
@@ -150,6 +174,19 @@ Deno.serve(async (req) => {
     return json({ code: toss.code ?? "TOSS_ERROR", message: toss.message ?? "결제 승인에 실패했어요." }, res.status >= 500 ? 502 : 400);
   }
 
+  // 승인 결과가 이 주문과 맞는지 한 번 더 확인해요. 다르면 결제를 취소하고 실패로 남겨요.
+  if (toss.orderId !== orderId || toss.totalAmount !== order.amount || toss.status !== "DONE") {
+    console.error("confirm-payment toss result mismatch", orderId, toss.orderId, toss.totalAmount, toss.status);
+    await fetch(`https://api.tosspayments.com/v1/payments/${encodeURIComponent(toss.paymentKey ?? paymentKey)}/cancel`, {
+      method: "POST",
+      headers: { Authorization: tossAuth, "Content-Type": "application/json", "Idempotency-Key": `mismatch-${orderId}` },
+      body: JSON.stringify({ cancelReason: "결제 승인 결과가 주문과 달라 자동 취소" }),
+    }).catch((e) => console.error("confirm-payment auto cancel failed", orderId, e));
+    const message = "결제 승인 결과가 주문과 달라 결제를 취소했어요. 다시 주문해 주세요.";
+    await markFailed("TOSS_RESULT_MISMATCH", message);
+    return json({ code: "TOSS_RESULT_MISMATCH", message }, 409);
+  }
+
   const { data: paid, error: updateError } = await supabase
     .from("orders")
     .update({
@@ -157,11 +194,12 @@ Deno.serve(async (req) => {
       payment_key: toss.paymentKey,
       payment_method: toss.method ?? null,
       approved_at: toss.approvedAt ?? new Date().toISOString(),
-      toss_response: toss,
+      toss_response: pickToss(toss),
       failure_code: null,
       failure_message: null,
     })
     .eq("order_id", orderId)
+    .eq("status", "pending")
     .select()
     .single();
 

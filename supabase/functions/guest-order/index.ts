@@ -15,6 +15,39 @@ const json = (body: unknown, status = 200) =>
 
 const TOSS_SECRET_KEY = Deno.env.get("TOSS_SECRET_KEY") ?? "test_gsk_docs_OaPz8L5KdmQXkzRz3y47BMw6";
 
+// 주문번호별로 30분 안에 5번 틀리면 잠가요(휴대폰 번호 무작위 대입 방지).
+const MAX_FAILS = 5;
+const LOCK_MINUTES = 30;
+
+// 화면에 보여 줄 때 이름·주소 일부를 가려요(홍*동, 서울 강남구 ***).
+const maskName = (s: string | null) => {
+  const c = [...(s ?? "")];
+  if (c.length <= 1) return "*";
+  if (c.length === 2) return c[0] + "*";
+  return c[0] + "*".repeat(c.length - 2) + c[c.length - 1];
+};
+const maskAddress = (s: string | null) => {
+  const parts = (s ?? "").trim().split(/\s+/);
+  return parts.length <= 2 ? parts[0] + " ***" : parts.slice(0, 2).join(" ") + " ***";
+};
+
+// 토스 응답 중 필요한 항목만 저장해요(휴대폰 번호·secret 등은 저장하지 않아요).
+const pickToss = (t: any) => ({
+  paymentKey: t.paymentKey,
+  orderId: t.orderId,
+  orderName: t.orderName,
+  status: t.status,
+  method: t.method,
+  totalAmount: t.totalAmount,
+  balanceAmount: t.balanceAmount,
+  requestedAt: t.requestedAt,
+  approvedAt: t.approvedAt,
+  receiptUrl: t.receipt?.url,
+  card: t.card ? { ...t.card, number: undefined } : undefined,
+  easyPay: t.easyPay,
+  cancels: t.cancels,
+});
+
 async function detail(supabase: SupabaseClient, o: any) {
   const { data: items } = await supabase
     .from("order_items")
@@ -33,8 +66,8 @@ async function detail(supabase: SupabaseClient, o: any) {
     canceledAt: o.canceled_at,
     cancelReason: o.cancel_reason,
     failureMessage: o.failure_message,
-    ordererName: o.orderer_name,
-    address: o.address,
+    ordererName: maskName(o.orderer_name),
+    address: maskAddress(o.address),
     items: (items ?? []).map((i) => ({
       productId: i.product_id,
       name: i.product_name,
@@ -69,18 +102,44 @@ Deno.serve(async (req) => {
   }
 
   const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
+  const since = new Date(Date.now() - LOCK_MINUTES * 60_000).toISOString();
+  const { count: fails, error: failError } = await supabase
+    .from("guest_order_attempts")
+    .select("id", { count: "exact", head: true })
+    .eq("order_id", orderId)
+    .gte("failed_at", since);
+  if (failError) {
+    console.error("guest-order attempts select failed", failError);
+    return json({ code: "DB_ERROR", message: "주문을 조회하지 못했어요." }, 500);
+  }
+  if ((fails ?? 0) >= MAX_FAILS) {
+    return json({ code: "TOO_MANY_ATTEMPTS", message: `잘못 입력한 횟수가 많아 ${LOCK_MINUTES}분 동안 조회할 수 없어요. 잠시 후 다시 시도해 주세요.` }, 429);
+  }
+
   const { data: order, error } = await supabase.from("orders").select("*").eq("order_id", orderId).eq("orderer_phone", phone).maybeSingle();
   if (error) {
     console.error("guest-order select failed", error);
     return json({ code: "DB_ERROR", message: "주문을 조회하지 못했어요." }, 500);
   }
   // 주문번호만 맞고 번호가 틀려도 같은 안내를 해요(다른 사람 주문 존재 여부를 알려주지 않기 위해).
-  if (!order) return json({ code: "ORDER_NOT_FOUND", message: "주문번호와 휴대폰 번호가 일치하는 주문이 없어요." }, 404);
+  if (!order) {
+    await supabase.from("guest_order_attempts").insert({ order_id: orderId });
+    return json({ code: "ORDER_NOT_FOUND", message: "주문번호와 휴대폰 번호가 일치하는 주문이 없어요." }, 404);
+  }
 
   if (action === "get") return json({ ok: true, ...(await detail(supabase, order)) });
 
   // ---------- 취소 ----------
   if (order.status === "canceled") return json({ ok: true, ...(await detail(supabase, order)) });
+  // 회원 주문은 주문한 회원이 로그인해야 취소할 수 있어요.
+  if (order.user_id) {
+    const token = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "");
+    const { data: auth } = await supabase.auth.getUser(token);
+    if (auth?.user?.id !== order.user_id) {
+      return json({ code: "LOGIN_REQUIRED", message: "회원 주문은 주문한 계정으로 로그인한 뒤 취소할 수 있어요." }, 403);
+    }
+  }
   if (order.status !== "paid" || !order.payment_key) {
     return json({ code: "NOT_CANCELABLE", message: "결제 완료된 주문만 취소할 수 있어요." }, 409);
   }
@@ -112,7 +171,7 @@ Deno.serve(async (req) => {
       status: "canceled",
       canceled_at: new Date().toISOString(),
       cancel_reason: reason,
-      ...(res.ok ? { toss_response: toss } : {}),
+      ...(res.ok ? { toss_response: pickToss(toss) } : {}),
     })
     .eq("id", order.id)
     .select()

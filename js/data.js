@@ -22,6 +22,9 @@ const CATEGORIES = {
   },
 };
 
+// 화면에 글자를 끼워 넣을 때(innerHTML) 특수문자를 바꿔서, 글자가 코드로 실행되지 않게 해요. 모든 페이지에서 써요.
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
 /* ---------- 상품 불러오기 ----------
  * 모든 페이지가 `await productsReady` 뒤에 PRODUCTS를 써요.
  * DB를 못 읽으면 마지막으로 불러온 목록(브라우저 저장본)을 대신 보여줘요. 결제 금액은 어차피 서버가 다시 계산해요. */
@@ -156,10 +159,10 @@ const ART = {
 
 /* 사진이 있으면 사진을, 불러오지 못하면 뒤에 깔린 SVG 일러스트가 그대로 보여요. */
 function renderThumb(p) {
-  const svg = `<svg viewBox="0 0 500 600" preserveAspectRatio="xMidYMid slice" role="img" aria-label="${p.name}">
+  const svg = `<svg viewBox="0 0 500 600" preserveAspectRatio="xMidYMid slice" role="img" aria-label="${esc(p.name)}">
     <rect width="500" height="600" fill="${p.bg}"/>
     <g ${p.cat === "shoes" ? 'transform="translate(0 -40)"' : ""}>${ART[p.art](p)}</g>
   </svg>`;
   if (!p.image) return svg;
-  return `<span class="thumb">${svg}<img class="thumb__img" src="${p.image}" alt="${p.name}" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()" /></span>`;
+  return `<span class="thumb">${svg}<img class="thumb__img" src="${p.image}" alt="${esc(p.name)}" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()" /></span>`;
 }

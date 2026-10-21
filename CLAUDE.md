@@ -58,7 +58,8 @@ supabase-js CDN(`@supabase/supabase-js@2.45.4` UMD, 전역 `supabase`) → `js/s
 4. `success.html` → `confirm-payment`: 금액 비교 → `reserve_order_stock()`로 재고 차감(모자라면 승인 안 함) → 시크릿 키로 토스 승인 API 호출 → `paid`. 토스가 거절하면 재고를 되돌리고 `failed`. 이미 `paid`면 같은 결과를 돌려줘요(새로고침 대비). 응답에 주문 상세(`items`)가 있어요.
 5. 취소: `order.html` → `guest-order`(`action: "cancel"`) → 토스 취소 API(`POST /v1/payments/{paymentKey}/cancel`) → `canceled` + `release_order_stock()`.
 
-- 금액 규칙(서버 `create-order`의 `quote()`가 기준): 판매가=정가×(1−할인율) 100원 단위 반올림(DB `products.final_price` 계산 컬럼), 상품 합계 5만원 미만 배송비 3,000원, 쿠폰=상품 합계 20%(10원 단위 내림, 최대 1만원), 주문 금액 1원~1,000만원. 화면의 `calcOrder()`는 장바구니 드로어용 추정치예요.
+- 금액 규칙(서버 `create-order`의 `quote()`가 기준): 판매가=정가×(1−할인율) 100원 단위 반올림(DB `products.final_price` 계산 컬럼), 상품 합계 5만원 미만 배송비 3,000원(상품별 무료배송은 없어서 DB `badges`의 `free`는 화면에 안 보여요), 쿠폰=상품 합계 20%(10원 단위 내림, 최대 1만원), 주문 금액 1원~1,000만원. 화면의 `calcOrder()`는 장바구니 드로어용 추정치예요.
+- 신규 회원 첫 구매 쿠폰은 **로그인 회원이고 결제 완료(`paid`) 주문이 없을 때만** 적용돼요. `callFunction()`이 로그인했으면 회원 토큰을 보내고, `create-order`가 회원을 확인해 `orders.user_id`에 남겨요. 자격이 없으면 dryRun은 쿠폰 없이 계산하고 `couponInfo`(`LOGIN_REQUIRED`/`ALREADY_USED`)를 돌려주고, 저장 요청은 `COUPON_NOT_AVAILABLE`(409)로 거부해요. `confirm-payment`는 승인 직전에 같은 회원의 다른 `paid` 주문이 있으면 `COUPON_ALREADY_USED`로 실패 처리해요. 2026-10-21 이전 주문엔 `user_id`가 없어서 그 전에 결제한 회원도 한 번은 쓸 수 있어요.
 - `create-order`는 예전 주문서가 보내던 `amount`·`coupon`도 `expectedAmount`·`useCoupon`으로 받아줘요(배포 전환기 호환).
 
 `TOSS_CLIENT_KEY`(`js/checkout.js`)는 토스 문서에 공개된 테스트 키예요. 테스트 키에서는 가상계좌가 보이지 않아요.
@@ -71,7 +72,7 @@ supabase-js CDN(`@supabase/supabase-js@2.45.4` UMD, 전역 `supabase`) → `js/s
 |---|---|---|
 | `products` | 상품(가격 `price`, 할인율 `sale_rate`, 판매가 `final_price` 자동 계산, 배지, 사진, 썸네일 색) | 누구나 읽기(`is_active`만), 수정은 서버만 |
 | `product_sizes` | 상품별 사이즈·재고(`stock`, 0이면 품절) | 누구나 읽기, 수정은 서버만 |
-| `orders` | 주문 요약·금액 내역·상태(`pending`/`paid`/`failed`/`canceled`)·`stock_reserved` | 서버만 |
+| `orders` | 주문 요약·금액 내역·상태(`pending`/`paid`/`failed`/`canceled`)·`stock_reserved`·`user_id`(회원 주문만) | 서버만 |
 | `order_items` | 주문 당시 상품명·가격·사이즈·수량 | 서버만 |
 | `wishlists` | 회원별 좋아요(`user_id`, `product_id`) | 로그인한 본인만 읽기·추가·삭제 |
 

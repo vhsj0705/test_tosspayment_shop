@@ -24,6 +24,32 @@ const MAX_AMOUNT = 10_000_000;
 
 type Item = { id: string; size: string; qty: number };
 type Problem = { id: string; size: string; reason: "NOT_FOUND" | "INVALID_SIZE" | "SOLD_OUT"; message: string; stock?: number };
+type CouponStatus = "OK" | "LOGIN_REQUIRED" | "ALREADY_USED";
+
+const COUPON_MESSAGE: Record<Exclude<CouponStatus, "OK">, string> = {
+  LOGIN_REQUIRED: "신규 회원 쿠폰은 로그인한 회원만 쓸 수 있어요.",
+  ALREADY_USED: "첫 구매 쿠폰은 결제를 마친 주문이 없을 때만 쓸 수 있어요.",
+};
+
+// 주문서는 로그인했으면 회원 토큰, 아니면 공개 anon 키를 보내요. anon 키면 회원이 없어요(null).
+async function currentUserId(supabase: SupabaseClient, req: Request) {
+  const token = req.headers.get("Authorization")?.replace(/^Bearer\s+/i, "");
+  if (!token) return null;
+  const { data } = await supabase.auth.getUser(token);
+  return data?.user?.id ?? null;
+}
+
+// 신규 회원 첫 구매 쿠폰: 로그인한 회원이고, 결제 완료(paid) 주문이 아직 없을 때만 써요.
+async function couponStatus(supabase: SupabaseClient, userId: string | null): Promise<CouponStatus> {
+  if (!userId) return "LOGIN_REQUIRED";
+  const { count, error } = await supabase
+    .from("orders")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("status", "paid");
+  if (error) throw error;
+  return count ? "ALREADY_USED" : "OK";
+}
 
 // 주문서는 상품·사이즈·수량·쿠폰 사용 여부만 보내요. 가격·할인·배송비·쿠폰은 DB 상품 정보로 서버가 직접 계산해요.
 async function quote(supabase: SupabaseClient, raw: Item[], useCoupon: boolean) {
@@ -116,19 +142,24 @@ Deno.serve(async (req) => {
     items.every((it: any) => isStr(it?.id, 20) && isStr(it?.size, 10) && Number.isInteger(it?.qty) && it.qty >= 1 && it.qty <= MAX_QTY);
   if (!itemsValid) return json({ code: "INVALID_REQUEST", message: "주문 상품 정보가 올바르지 않아요." }, 400);
   // 이전 버전 주문서는 쿠폰 할인 금액(coupon)을 보내요. 금액은 무시하고 사용 여부만 봐요.
-  const useCoupon = b?.useCoupon === true || (Number.isInteger(b?.coupon) && b.coupon > 0);
+  const wantCoupon = b?.useCoupon === true || (Number.isInteger(b?.coupon) && b.coupon > 0);
 
   const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-  let q;
+  let q, userId: string | null, coupon: CouponStatus;
   try {
-    q = await quote(supabase, items, useCoupon);
+    userId = await currentUserId(supabase, req);
+    coupon = await couponStatus(supabase, userId);
+    q = await quote(supabase, items, wantCoupon && coupon === "OK");
   } catch (e) {
     console.error("create-order quote failed", e);
     return json({ code: "DB_ERROR", message: "상품 정보를 불러오지 못했어요." }, 500);
   }
+  const useCoupon = wantCoupon && coupon === "OK";
+  const couponInfo = { status: coupon, message: coupon === "OK" ? null : COUPON_MESSAGE[coupon] };
 
-  if (b?.dryRun === true) return json({ ok: true, ...q });
+  // dryRun은 쿠폰을 못 쓰면 쿠폰 없이 계산하고, 주문서가 이유를 보여줄 수 있게 couponInfo를 같이 돌려줘요.
+  if (b?.dryRun === true) return json({ ok: true, ...q, couponInfo });
 
   // ---------- 주문 저장 ----------
   // 화면에 보인 금액. (이전 버전 주문서는 amount로 보내요)
@@ -142,6 +173,9 @@ Deno.serve(async (req) => {
     (!o.email || (typeof o.email === "string" && o.email.length <= 200)) &&
     (!o.memo || (typeof o.memo === "string" && o.memo.length <= 200));
   if (!valid) return json({ code: "INVALID_REQUEST", message: "주문 정보가 올바르지 않아요." }, 400);
+  if (wantCoupon && !useCoupon) {
+    return json({ code: "COUPON_NOT_AVAILABLE", message: couponInfo.message, couponInfo, amounts: q.amounts }, 409);
+  }
 
   if (q.problems.length) {
     return json({ code: q.problems[0].reason === "SOLD_OUT" ? "SOLD_OUT" : "PRODUCT_UNAVAILABLE", message: q.problems[0].message, problems: q.problems, amounts: q.amounts }, 409);
@@ -163,6 +197,7 @@ Deno.serve(async (req) => {
       shipping_fee: q.amounts.shipping,
       coupon_amount: q.amounts.coupon,
       use_coupon: useCoupon,
+      user_id: userId,
       orderer_name: o.name.trim(),
       orderer_phone: o.phone,
       orderer_email: o.email || null,

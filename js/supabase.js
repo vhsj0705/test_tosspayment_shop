@@ -13,7 +13,13 @@ const SUPABASE_URL = "https://etdvzqlvqfrnkxmzythf.supabase.co";
 const SUPABASE_ANON_KEY =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0ZHZ6cWx2cWZybmt4bXp5dGhmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI0MzQ4OTUsImV4cCI6MjEwODAxMDg5NX0.5xRKFqeBI2UYCW0bEx5h3v7Gfv58ht40v-cUAPAfaRo";
 
+// 로그인했으면 회원 토큰을 보내요(서버가 회원을 알아야 하는 기능: 신규 회원 첫 구매 쿠폰). 아니면 anon 키.
 async function callFunction(name, body) {
+  let token = SUPABASE_ANON_KEY;
+  try {
+    const session = sb && (await sb.auth.getSession()).data.session;
+    if (session) token = session.access_token;
+  } catch (e) {}
   let res;
   try {
     res = await fetch(`${SUPABASE_URL}/functions/v1/${name}`, {
@@ -21,7 +27,7 @@ async function callFunction(name, body) {
       headers: {
         "Content-Type": "application/json",
         apikey: SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(body),
     });

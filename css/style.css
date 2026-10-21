@@ -224,19 +224,6 @@ input, select { font: inherit; }
 .toolbar__count { font-size: 13px; color: var(--gray-700); }
 .toolbar__count b { color: var(--ink); }
 .toolbar__right { display: flex; align-items: center; gap: 10px; }
-.filter-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  height: 30px;
-  padding: 0 10px;
-  border: 1px solid var(--gray-200);
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 600;
-}
-.filter-chip.is-on { border-color: var(--black); }
-.filter-chip input { margin: 0; accent-color: var(--black); }
 .sort-select {
   height: 30px;
   border: 1px solid var(--gray-200);
@@ -334,7 +321,6 @@ input, select { font: inherit; }
   background: var(--gray-100);
   color: var(--gray-700);
 }
-.badge--free { color: var(--blue); background: #eaf3ff; }
 .badge--only { color: var(--white); background: var(--black); }
 .badge--soldout { color: var(--white); background: var(--gray-500); }
 
@@ -556,7 +542,10 @@ input, select { font: inherit; }
 .input:focus { border-color: var(--black); }
 .input.is-error { border-color: var(--red); }
 
-.coupon-box { display: flex; gap: 8px; padding-top: 14px; }
+.coupon-box { display: flex; flex-direction: column; gap: 8px; padding-top: 14px; }
+.coupon-box label:has(input:disabled) { color: var(--gray-500); }
+.coupon-note { font-size: 12px; color: var(--gray-700); padding-left: 24px; }
+.coupon-note a { text-decoration: underline; font-weight: 700; }
 .coupon-box label { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
 .coupon-box input { accent-color: var(--black); width: 16px; height: 16px; }
 

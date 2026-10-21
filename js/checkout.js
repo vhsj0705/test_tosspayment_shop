@@ -79,6 +79,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (problems.length) $("#fixItems").addEventListener("click", () => fixItems(problems));
 
     if (!quote) return;
+    paintCoupon();
     const a = quote.amounts;
     $("#sumOrigin").textContent = won(a.origin);
     $("#sumDiscount").textContent = "-" + won(a.productDiscount);
@@ -86,6 +87,25 @@ document.addEventListener("DOMContentLoaded", async () => {
     $("#sumShip").textContent = a.shipping ? won(a.shipping) : "무료";
     $("#sumTotal").textContent = won(a.total);
     payBtn.textContent = `${won(a.total)} 결제하기`;
+  }
+
+  // 신규 회원 첫 구매 쿠폰은 서버가 자격(로그인 회원 + 결제 완료 주문 없음)을 확인해요. 못 쓰면 이유를 보여줘요.
+  const couponOk = () => !quote || !quote.couponInfo || quote.couponInfo.status === "OK";
+  function paintCoupon() {
+    const note = $("#couponNote");
+    const info = quote.couponInfo;
+    if (couponOk()) {
+      couponEl.disabled = false;
+      note.hidden = true;
+      return;
+    }
+    couponEl.checked = false;
+    couponEl.disabled = true;
+    note.hidden = false;
+    note.innerHTML =
+      info.status === "LOGIN_REQUIRED"
+        ? `${info.message} <a href="login.html?next=${encodeURIComponent("checkout.html" + location.search)}">로그인하기</a>`
+        : info.message;
   }
 
   // 품절은 빼고, 재고가 조금 남은 상품은 남은 수량으로 줄여요.
@@ -154,7 +174,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     } catch (err) {
       toast(err.message || "금액을 다시 계산하지 못했어요");
     } finally {
-      couponEl.disabled = false;
+      couponEl.disabled = !couponOk();
       payBtn.disabled = !canPay();
     }
   });
@@ -180,7 +200,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       });
     } catch (err) {
       console.error(err);
-      if (["AMOUNT_CHANGED", "SOLD_OUT", "PRODUCT_UNAVAILABLE"].includes(err.code)) {
+      if (["AMOUNT_CHANGED", "SOLD_OUT", "PRODUCT_UNAVAILABLE", "COUPON_NOT_AVAILABLE"].includes(err.code)) {
         await syncAmount().catch(() => {});
       }
       toast(err.message || "주문을 저장하지 못했어요");

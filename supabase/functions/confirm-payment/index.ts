@@ -92,6 +92,26 @@ Deno.serve(async (req) => {
     return json({ code: "AMOUNT_MISMATCH", message: "주문 금액과 결제 금액이 달라요." }, 400);
   }
 
+  // 첫 구매 쿠폰 주문인데 그 사이 같은 회원의 다른 주문이 먼저 결제됐으면(창 두 개로 동시 주문 등) 승인하지 않아요.
+  // (재고를 이미 잡아 둔 주문은 토스 승인을 다시 확인하는 중일 수 있어서 건너뛰어요.)
+  if (order.use_coupon && order.user_id && !order.stock_reserved) {
+    const { count, error: couponError } = await supabase
+      .from("orders")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", order.user_id)
+      .eq("status", "paid")
+      .neq("id", order.id);
+    if (couponError) {
+      console.error("confirm-payment coupon check failed", couponError);
+      return json({ code: "DB_ERROR", message: "쿠폰 사용 여부를 확인하지 못했어요." }, 500);
+    }
+    if (count) {
+      const message = "첫 구매 쿠폰은 이미 다른 주문에서 썼어요. 쿠폰 없이 다시 주문해 주세요.";
+      await markFailed("COUPON_ALREADY_USED", message);
+      return json({ code: "COUPON_ALREADY_USED", message }, 409);
+    }
+  }
+
   // 토스 승인 전에 재고를 먼저 줄여요. 모자라면 승인하지 않아요(동시 구매 시 한 명만 성공).
   const { error: stockError } = await supabase.rpc("reserve_order_stock", { p_order_id: orderId });
   if (stockError) {

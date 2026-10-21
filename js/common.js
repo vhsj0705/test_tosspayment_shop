@@ -291,11 +291,14 @@ function goLogin(message) {
   if (confirm(message)) location.href = `login.html?next=${encodeURIComponent(here + location.search)}`;
 }
 
-const BADGE_LABEL = { free: "무료배송", only: "단독" };
+// 배송비는 상품과 상관없이 주문 합계로 정해져요(5만원 이상 무료). 그래서 DB의 "free" 배지는 화면에 보이지 않아요.
+const BADGE_LABEL = { only: "단독" };
+const SHIPPING_NOTE = "3,000원 · 5만원 이상 무료배송";
 const isSoldOut = (p) => p.sizes.length > 0 && p.soldout.length === p.sizes.length;
 
 function productCard(p, rank) {
   const liked = Likes.has(p.id);
+  const badges = p.badges.filter((b) => BADGE_LABEL[b]);
   return `
     <li class="product-card" data-id="${p.id}" tabindex="0">
       <div class="product-card__thumb">
@@ -310,7 +313,7 @@ function productCard(p, rank) {
         <p class="product-card__name">${p.name}</p>
         <div class="price-row"><span class="discount">${p.sale}%</span><span class="price">${won(p.finalPrice)}</span></div>
         <div class="product-card__meta"><span class="heart">♥ ${compact(p.likes)}</span><span>★ ${p.rating} (${compact(p.reviews)})</span></div>
-        ${isSoldOut(p) || p.badges.length ? `<div class="badges">${isSoldOut(p) ? '<span class="badge badge--soldout">품절</span>' : ""}${p.badges.map((b) => `<span class="badge badge--${b}">${BADGE_LABEL[b]}</span>`).join("")}</div>` : ""}
+        ${isSoldOut(p) || badges.length ? `<div class="badges">${isSoldOut(p) ? '<span class="badge badge--soldout">품절</span>' : ""}${badges.map((b) => `<span class="badge badge--${b}">${BADGE_LABEL[b]}</span>`).join("")}</div>` : ""}
       </div>
     </li>`;
 }
@@ -357,7 +360,7 @@ function renderProductListLd(cat, list) {
 
 async function initListPage(catKey) {
   const cat = CATEGORIES[catKey];
-  const state = { sub: "전체", sort: "popular", freeOnly: false };
+  const state = { sub: "전체", sort: "popular" };
   const grid = $("#productGrid");
 
   grid.innerHTML = `<li class="empty">상품을 불러오는 중이에요…</li>`;
@@ -380,7 +383,7 @@ async function initListPage(catKey) {
     .join("");
 
   function draw() {
-    let list = all.filter((p) => (state.sub === "전체" || p.sub === state.sub) && (!state.freeOnly || p.badges.includes("free")));
+    let list = all.filter((p) => state.sub === "전체" || p.sub === state.sub);
     const sorters = {
       popular: (a, b) => b.likes - a.likes,
       low: (a, b) => a.finalPrice - b.finalPrice,
@@ -404,11 +407,6 @@ async function initListPage(catKey) {
   });
   $("#sortSelect").addEventListener("change", (e) => {
     state.sort = e.target.value;
-    draw();
-  });
-  $("#freeOnly").addEventListener("change", (e) => {
-    state.freeOnly = e.target.checked;
-    e.target.closest(".filter-chip").classList.toggle("is-on", state.freeOnly);
     draw();
   });
 
@@ -459,7 +457,7 @@ function openProduct(id) {
         <div class="price-row"><span class="discount">${p.sale}%</span><span class="price">${won(p.finalPrice)}</span></div>
       </div>
       <ul class="info-list">
-        <li><span class="k">배송</span><span>${p.badges.includes("free") ? "무료배송" : "3,000원 (5만원 이상 무료)"} · 내일 출발</span></li>
+        <li><span class="k">배송</span><span>${SHIPPING_NOTE} · 내일 출발</span></li>
         <li><span class="k">적립</span><span>최대 ${won(Math.round(p.finalPrice * 0.05))} (5%)</span></li>
         <li><span class="k">후기</span><span>★ ${p.rating} · ${p.reviews.toLocaleString("ko-KR")}개</span></li>
       </ul>

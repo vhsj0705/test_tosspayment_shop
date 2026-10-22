@@ -38,7 +38,7 @@ http://localhost:5500 에서 확인해요. `serve.ps1`은 Node/Python 없이 도
 
 전역 스크립트 방식이에요(ES 모듈 아님). 모든 페이지가 같은 순서로 스크립트를 불러오고, 뒤 파일이 앞 파일의 전역을 그대로 써요.
 
-supabase-js CDN(`@supabase/supabase-js@2.45.4` UMD, 전역 `supabase`) → `js/supabase.js` → `js/data.js` → `js/common.js` → (주문서만) `js/checkout.js`. 새 페이지를 만들면 이 순서를 그대로 넣으세요.
+supabase-js CDN(`@supabase/supabase-js@2.45.4` UMD, 전역 `supabase`) → `js/supabase.js` → `js/data.js` → `js/common.js` → `js/chat.js` → (주문서만) `js/checkout.js`. 새 페이지를 만들면 이 순서를 그대로 넣으세요.
 
 - **`js/supabase.js`**: Supabase 주소·공개 anon 키, `restGet()`(공개 표 읽기), `callFunction()`(Edge Function 호출, 실패 시 `err.code`·`err.data`), 로그인용 클라이언트 `sb`와 `authReady`(Promise → 로그인한 user 또는 null). 로그인 상태는 supabase-js가 `localStorage`에 보관해요.
 - **`js/data.js`**: `CATEGORIES`, 상품을 DB에서 불러오는 `productsReady`(Promise)와 `PRODUCTS` 배열, `getProduct()`, `refreshStock(id)`, SVG 썸네일 `ART`/`renderThumb()`. DB 행은 `toProduct()`가 화면용 모양(`cat`, `sale`, `finalPrice`, `sizes`, `stock`, `soldout`, `image`)으로 바꿔요. **`PRODUCTS`는 처음엔 비어 있으니 쓰기 전에 `await productsReady`** 하세요. DB를 못 읽으면 `localStorage`(`fitlog-products-cache`)의 마지막 목록을 써요. `renderThumb()`는 사진 뒤에 SVG 일러스트를 깔아 둬서 사진이 안 불러와지면 SVG가 보여요. 사진을 바꿀 땐(`products.photo_id`/`photo_by`) 다른 회사 로고가 보이는 사진은 피하고 README "이미지 출처"도 같이 고치세요.
@@ -79,6 +79,8 @@ supabase-js CDN(`@supabase/supabase-js@2.45.4` UMD, 전역 `supabase`) → `js/s
 | `order_items` | 주문 당시 상품명·가격·사이즈·수량 | 서버만 |
 | `wishlists` | 회원별 좋아요(`user_id`, `product_id`) | 로그인한 본인만 읽기·추가·삭제 |
 | `guest_order_attempts` | 주문조회 실패 기록(`order_id`, `failed_at`) | 서버만 |
+| `chat_documents` | 챗봇 검색용 상품·안내 문서와 Upstage 임베딩(`vector(4096)`) | 서버만 |
+| `chat_requests` | 챗봇 요청 IP 기록(10분 20회 제한, 1일 뒤 삭제) | 서버만 |
 
 - 보안 어드바이저의 `orders`·`order_items`·`guest_order_attempts` "RLS Enabled No Policy"는 의도한 상태예요(서버만 접근).
 - DB 함수 `reserve_order_stock(order_id)`/`release_order_stock(order_id)`: `stock_reserved` 플래그로 한 번만 차감·복구해요. `stock >= qty` 조건부 UPDATE라 마지막 1개는 한 명만 가져가요. service role만 실행할 수 있어요.
@@ -93,6 +95,14 @@ supabase-js CDN(`@supabase/supabase-js@2.45.4` UMD, 전역 `supabase`) → `js/s
 - `confirm-payment`는 금액이 달라도 주문 상태를 바꾸지 않고 거절만 해요. 토스 승인 응답의 `orderId`·`totalAmount`·`status(DONE)`가 주문과 다르면 결제를 취소하고 `failed`로 남겨요. `toss_response`에는 필요한 항목만(`pickToss()`) 저장해요.
 - pg_cron 작업: `purge-unpaid-orders`(매일 04:00 KST, 30일 지난 `pending`·`failed` 주문 삭제), `purge-guest-order-attempts`(1일 지난 기록 삭제). 개인정보처리방침의 보유 기간과 같아요.
 - 브라우저 역할(anon/authenticated)의 쓰기 권한은 회수했어요. 읽기는 RLS 정책대로예요.
+
+## 쇼핑 도우미 챗봇
+
+- 화면: `js/chat.js`(오른쪽 아래 버튼, 대화는 `sessionStorage` `fitlog-chat`에만). 답변의 상품은 카드로 보여주고 누르면 상품 모달을 열어요.
+- 서버: Edge Function `chat`. Upstage `embedding-passage`/`embedding-query`(4096차원)로 `match_chat_documents()`에서 찾고, OpenAI(`OPENAI_MODEL`, 기본 `gpt-5-mini`)가 도구(`search_products`·`search_guide`·`show_order_lookup`)로 답해요. 가격·재고는 검색 뒤 DB에서 실시간으로 읽어요.
+- 문서 갱신은 자동이에요: 요청마다 판매 중 상품과 함수 안 `GUIDE` 문구를 `chat_documents.content`와 비교해 바뀐 것만 다시 임베딩해요. 배송비·쿠폰 규칙을 바꾸면 `GUIDE`도 고치세요.
+- 주문 조회는 개인정보를 OpenAI로 보내지 않도록 채팅 안 조회 칸이 `guest-order`를 바로 불러요. 채팅 글의 휴대폰 번호는 서버가 가린 뒤 OpenAI로 보내요.
+- 필요한 Secrets: `OPENAI_API_KEY`, `OPENAI_MODEL`, `UPSTAGE_API_KEY`. 없으면 `CHAT_NOT_CONFIGURED`(503)로 "준비 중"이라고 답해요. 개인정보처리방침에 OpenAI·업스테이지 위탁이 적혀 있어요.
 
 ## 토스페이먼츠 문서 참고
 
